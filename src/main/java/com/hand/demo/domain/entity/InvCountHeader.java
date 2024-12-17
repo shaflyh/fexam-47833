@@ -134,7 +134,7 @@ public class InvCountHeader extends AuditDomain {
 
     private String countType;
 
-    private Object counterIds;
+    private String counterIds;
 
     private Integer delFlag;
 
@@ -146,9 +146,9 @@ public class InvCountHeader extends AuditDomain {
 
     private String remark;
 
-    private Object snapshotBatchIds;
+    private String snapshotBatchIds;
 
-    private Object snapshotMaterialIds;
+    private String snapshotMaterialIds;
 
     private String sourceCode;
 
@@ -156,7 +156,7 @@ public class InvCountHeader extends AuditDomain {
 
     private String sourceSystem;
 
-    private Object supervisorIds;
+    private String supervisorIds;
 
     @ApiModelProperty(value = "", required = true)
     @NotNull

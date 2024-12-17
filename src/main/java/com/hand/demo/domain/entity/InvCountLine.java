@@ -109,7 +109,7 @@ public class InvCountLine extends AuditDomain {
     @NotNull
     private Long countHeaderId;
 
-    private Object counterIds;
+    private String counterIds;
 
     @ApiModelProperty(value = "", required = true)
     @NotNull
