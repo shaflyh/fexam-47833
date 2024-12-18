@@ -30,5 +30,11 @@ public interface InvWarehouseService {
      */
     void saveData(List<InvWarehouse> invWarehouses);
 
+    /**
+     * Check is WMS Warehouse
+     *
+     * @param warehouseId warehouseId
+     */
+    boolean isWmsWarehouse(Long warehouseId);
 }
 

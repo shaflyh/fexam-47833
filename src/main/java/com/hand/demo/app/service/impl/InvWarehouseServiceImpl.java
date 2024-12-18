@@ -37,5 +37,11 @@ public class InvWarehouseServiceImpl implements InvWarehouseService {
         invWarehouseRepository.batchInsertSelective(insertList);
         invWarehouseRepository.batchUpdateByPrimaryKeySelective(updateList);
     }
+
+    @Override
+    public boolean isWmsWarehouse(Long warehouseId) {
+        InvWarehouse invWarehouse = invWarehouseRepository.selectByPrimaryKey(warehouseId);
+        return invWarehouse.getIsWmsWarehouse().equals(1);
+    }
 }
 
