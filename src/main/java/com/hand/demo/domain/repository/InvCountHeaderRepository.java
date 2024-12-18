@@ -1,5 +1,6 @@
 package com.hand.demo.domain.repository;
 
+import com.hand.demo.api.dto.InvCountHeaderDTO;
 import org.hzero.mybatis.base.BaseRepository;
 import com.hand.demo.domain.entity.InvCountHeader;
 
@@ -18,7 +19,7 @@ public interface InvCountHeaderRepository extends BaseRepository<InvCountHeader>
      * @param invCountHeader 查询条件
      * @return 返回值
      */
-    List<InvCountHeader> selectList(InvCountHeader invCountHeader);
+    List<InvCountHeaderDTO> selectList(InvCountHeader invCountHeader);
 
     /**
      * 根据主键查询（可关联表）

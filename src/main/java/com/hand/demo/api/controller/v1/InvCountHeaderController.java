@@ -1,5 +1,7 @@
 package com.hand.demo.api.controller.v1;
 
+import com.hand.demo.api.dto.InvCountHeaderDTO;
+import com.hand.demo.api.dto.InvCountInfoDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.core.iam.ResourceLevel;
 import io.choerodon.mybatis.pagehelper.annotation.SortDefault;
@@ -7,7 +9,10 @@ import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import io.choerodon.mybatis.pagehelper.domain.Sort;
 import io.choerodon.swagger.annotation.Permission;
 import io.swagger.annotations.ApiOperation;
+import org.hzero.boot.platform.lov.annotation.ProcessLovValue;
+import org.hzero.core.base.BaseConstants;
 import org.hzero.core.base.BaseController;
+import org.hzero.core.cache.ProcessCacheValue;
 import org.hzero.core.util.Results;
 import org.hzero.mybatis.helper.SecurityTokenHelper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +23,7 @@ import com.hand.demo.domain.entity.InvCountHeader;
 import com.hand.demo.domain.repository.InvCountHeaderRepository;
 import springfox.documentation.annotations.ApiIgnore;
 
+import javax.validation.Valid;
 import java.util.List;
 
 /**
@@ -31,47 +37,68 @@ import java.util.List;
 @RequestMapping("/v1/{organizationId}/inv-count-headers")
 public class InvCountHeaderController extends BaseController {
 
-    @Autowired
-    private InvCountHeaderRepository invCountHeaderRepository;
+    private final InvCountHeaderRepository invCountHeaderRepository;
+    private final InvCountHeaderService invCountHeaderService;
 
     @Autowired
-    private InvCountHeaderService invCountHeaderService;
+    public InvCountHeaderController(InvCountHeaderRepository invCountHeaderRepository,
+                                    InvCountHeaderService invCountHeaderService) {
+        this.invCountHeaderRepository = invCountHeaderRepository;
+        this.invCountHeaderService = invCountHeaderService;
+    }
 
-    @ApiOperation(value = "列表")
+    @ApiOperation(value = "List")
     @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessLovValue(targetField = BaseConstants.FIELD_BODY)
     @GetMapping
-    public ResponseEntity<Page<InvCountHeader>> list(InvCountHeader invCountHeader, @PathVariable Long organizationId,
-                                                     @ApiIgnore
-                                                     @SortDefault(value = InvCountHeader.FIELD_COUNT_HEADER_ID,
-                                                             direction = Sort.Direction.DESC) PageRequest pageRequest) {
-        Page<InvCountHeader> list = invCountHeaderService.selectList(pageRequest, invCountHeader);
+    public ResponseEntity<Page<InvCountHeaderDTO>> list(InvCountHeader invCountHeader,
+                                                        @PathVariable Long organizationId, @ApiIgnore
+                                                        @SortDefault(value = InvCountHeader.FIELD_COUNT_HEADER_ID,
+                                                                direction = Sort.Direction.DESC)
+                                                        PageRequest pageRequest) {
+        Page<InvCountHeaderDTO> list = invCountHeaderService.selectList(pageRequest, invCountHeader);
         return Results.success(list);
     }
 
-    @ApiOperation(value = "明细")
+    @ApiOperation(value = "Details")
     @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessLovValue(targetField = BaseConstants.FIELD_BODY)
     @GetMapping("/{countHeaderId}/detail")
-    public ResponseEntity<InvCountHeader> detail(@PathVariable Long countHeaderId) {
-        InvCountHeader invCountHeader = invCountHeaderRepository.selectByPrimary(countHeaderId);
+    public ResponseEntity<InvCountHeaderDTO> detail(@PathVariable Long organizationId,
+                                                    @PathVariable Long countHeaderId) {
+        InvCountHeaderDTO invCountHeader = invCountHeaderService.selectDetail(countHeaderId);
         return Results.success(invCountHeader);
     }
 
-    @ApiOperation(value = "创建或更新")
+    @ApiOperation(value = "Save Counting Order")
     @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/order-save")
+    public ResponseEntity<InvCountInfoDTO> orderSave(@PathVariable Long organizationId,
+                                                     @RequestBody List<InvCountHeader> invCountHeaders) {
+        validList(invCountHeaders);
+        SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
+        return Results.success(invCountHeaderService.orderSave(invCountHeaders));
+    }
+
+    @ApiOperation(value = "Create or Update")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
     @PostMapping
     public ResponseEntity<List<InvCountHeader>> save(@PathVariable Long organizationId,
                                                      @RequestBody List<InvCountHeader> invCountHeaders) {
-        validObject(invCountHeaders);
+        validList(invCountHeaders);
         SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
         invCountHeaders.forEach(item -> item.setTenantId(organizationId));
         invCountHeaderService.saveData(invCountHeaders);
         return Results.success(invCountHeaders);
     }
 
-    @ApiOperation(value = "删除")
+    @ApiOperation(value = "Delete")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @DeleteMapping
-    public ResponseEntity<?> remove(@RequestBody List<InvCountHeader> invCountHeaders) {
+    public ResponseEntity<?> remove(@PathVariable Long organizationId,
+                                    @RequestBody List<InvCountHeader> invCountHeaders) {
         SecurityTokenHelper.validToken(invCountHeaders);
         invCountHeaderRepository.batchDeleteByPrimaryKey(invCountHeaders);
         return Results.success();

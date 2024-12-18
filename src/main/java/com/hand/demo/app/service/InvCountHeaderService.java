@@ -1,5 +1,7 @@
 package com.hand.demo.app.service;
 
+import com.hand.demo.api.dto.InvCountHeaderDTO;
+import com.hand.demo.api.dto.InvCountInfoDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import com.hand.demo.domain.entity.InvCountHeader;
@@ -21,7 +23,15 @@ public interface InvCountHeaderService {
      * @param invCountHeaders 查询条件
      * @return 返回值
      */
-    Page<InvCountHeader> selectList(PageRequest pageRequest, InvCountHeader invCountHeaders);
+    Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeader invCountHeaders);
+
+    /**
+     * Select detail Invoice Count Header
+     *
+     * @param countHeaderId countHeaderId
+     * @return InvCountHeaderDTO
+     */
+    InvCountHeaderDTO selectDetail(Long countHeaderId);
 
     /**
      * 保存数据
@@ -30,5 +40,11 @@ public interface InvCountHeaderService {
      */
     void saveData(List<InvCountHeader> invCountHeaders);
 
+    /**
+     * Create order save
+     *
+     * @param invCountHeaders invCountHeaders
+     */
+    InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders);
 }
 

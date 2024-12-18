@@ -1,5 +1,6 @@
 package com.hand.demo.infra.mapper;
 
+import com.hand.demo.api.dto.InvCountHeaderDTO;
 import io.choerodon.mybatis.common.BaseMapper;
 import com.hand.demo.domain.entity.InvCountHeader;
 
@@ -18,6 +19,6 @@ public interface InvCountHeaderMapper extends BaseMapper<InvCountHeader> {
      * @param invCountHeader 查询条件
      * @return 返回值
      */
-    List<InvCountHeader> selectList(InvCountHeader invCountHeader);
+    List<InvCountHeaderDTO> selectList(InvCountHeader invCountHeader);
 }
 

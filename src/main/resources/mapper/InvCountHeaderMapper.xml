@@ -51,7 +51,7 @@
         fich.object_version_number
     </sql>
 
-    <select id = "selectList" resultType = "com.hand.demo.domain.entity.InvCountHeader">
+    <select id = "selectList" resultType = "com.hand.demo.api.dto.InvCountHeaderDTO">
         select
         <include refid = "BaseSql"/>
         from fexam_inv_count_header fich

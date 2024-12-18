@@ -3,6 +3,8 @@ package com.hand.demo.domain.entity;
 import java.util.Date;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.hand.demo.infra.constant.ErrorCodeConst;
+import com.hand.demo.infra.constant.LovConst;
 import io.choerodon.mybatis.annotation.ModifyAudit;
 import io.choerodon.mybatis.annotation.VersionAudit;
 import io.choerodon.mybatis.domain.AuditDomain;
@@ -19,6 +21,7 @@ import java.util.Date;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.hzero.boot.platform.lov.annotation.LovValue;
 
 /**
  * (InvCountHeader)实体类
@@ -82,6 +85,27 @@ public class InvCountHeader extends AuditDomain {
     @GeneratedValue
     private Long countHeaderId;
 
+    @ApiModelProperty(value = "", required = true)
+    @NotNull(message = ErrorCodeConst.INPUT_NULL)
+    private Long tenantId;
+
+    @ApiModelProperty(value = "", required = true)
+    @NotBlank(message = ErrorCodeConst.INPUT_BLANK)
+    @LovValue(lovCode = LovConst.INV_COUNT_STATUS)
+    private String countStatus;
+
+    @NotNull(message = ErrorCodeConst.INPUT_NULL)
+    private Long companyId;
+
+    @NotNull(message = ErrorCodeConst.INPUT_NULL)
+    private Long warehouseId;
+
+    @NotBlank(message = ErrorCodeConst.INPUT_BLANK)
+    private String supervisorIds;
+
+    @NotBlank(message = ErrorCodeConst.INPUT_BLANK)
+    private String counterIds;
+
     private Date approvedTime;
 
     private String attribute1;
@@ -116,25 +140,16 @@ public class InvCountHeader extends AuditDomain {
 
     private String attributeCategory;
 
-    private Long companyId;
-
     private String countDimension;
 
     private String countMode;
 
     @ApiModelProperty(value = "", required = true)
-    @NotBlank
     private String countNumber;
-
-    @ApiModelProperty(value = "", required = true)
-    @NotBlank
-    private String countStatus;
 
     private String countTimeStr;
 
     private String countType;
-
-    private String counterIds;
 
     private Integer delFlag;
 
@@ -156,16 +171,14 @@ public class InvCountHeader extends AuditDomain {
 
     private String sourceSystem;
 
-    private String supervisorIds;
-
-    @ApiModelProperty(value = "", required = true)
-    @NotNull
-    private Long tenantId;
-
-    private Long warehouseId;
-
     private Long workflowId;
 
+    public interface Save {
+    }
 
+    public interface Update {
+    }
 }
+
+
 

@@ -93,3 +93,6 @@ logging:
     io.choerodon: debug
     org.hzero: debug
     com.hand.demo: debug
+hzero:
+  cache-value:
+    enable: true

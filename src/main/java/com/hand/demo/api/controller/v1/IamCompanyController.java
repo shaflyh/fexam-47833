@@ -1,11 +1,13 @@
 package com.hand.demo.api.controller.v1;
 
+import com.hand.demo.config.SwaggerTags;
 import io.choerodon.core.domain.Page;
 import io.choerodon.core.iam.ResourceLevel;
 import io.choerodon.mybatis.pagehelper.annotation.SortDefault;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import io.choerodon.mybatis.pagehelper.domain.Sort;
 import io.choerodon.swagger.annotation.Permission;
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.hzero.core.base.BaseController;
 import org.hzero.core.util.Results;
@@ -37,7 +39,7 @@ public class IamCompanyController extends BaseController {
     @Autowired
     private IamCompanyService iamCompanyService;
 
-    @ApiOperation(value = "列表")
+    @ApiOperation(value = "List")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @GetMapping
     public ResponseEntity<Page<IamCompany>> list(IamCompany iamCompany, @PathVariable Long organizationId, @ApiIgnore
@@ -46,7 +48,7 @@ public class IamCompanyController extends BaseController {
         return Results.success(list);
     }
 
-    @ApiOperation(value = "明细")
+    @ApiOperation(value = "Details")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @GetMapping("/{companyId}/detail")
     public ResponseEntity<IamCompany> detail(@PathVariable Long companyId) {
@@ -54,7 +56,7 @@ public class IamCompanyController extends BaseController {
         return Results.success(iamCompany);
     }
 
-    @ApiOperation(value = "创建或更新")
+    @ApiOperation(value = "Create or Update")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @PostMapping
     public ResponseEntity<List<IamCompany>> save(@PathVariable Long organizationId,
@@ -66,7 +68,7 @@ public class IamCompanyController extends BaseController {
         return Results.success(iamCompanys);
     }
 
-    @ApiOperation(value = "删除")
+    @ApiOperation(value = "Delete")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @DeleteMapping
     public ResponseEntity<?> remove(@RequestBody List<IamCompany> iamCompanys) {
