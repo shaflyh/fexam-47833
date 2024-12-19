@@ -1,5 +1,10 @@
 package com.hand.demo.app.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.hand.demo.api.dto.*;
 import com.hand.demo.app.service.InvCountLineService;
 import com.hand.demo.app.service.InvWarehouseService;
@@ -14,16 +19,20 @@ import io.choerodon.core.exception.CommonException;
 import io.choerodon.core.oauth.DetailsHelper;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
+import org.hzero.boot.apaas.common.userinfo.domain.UserVO;
+import org.hzero.boot.apaas.common.userinfo.infra.feign.IamRemoteService;
 import org.hzero.boot.platform.code.builder.CodeRuleBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.hand.demo.app.service.InvCountHeaderService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import com.hand.demo.domain.entity.InvCountHeader;
 import com.hand.demo.domain.repository.InvCountHeaderRepository;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,6 +48,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvCountHeaderMapper invCountHeaderMapper;
     private final InvWarehouseService invWarehouseService;
     private final InvCountLineService invCountLineService;
+    private final IamRemoteService iamRemoteService;
     // TODO: Make sure it's okay to call the repository directly
     private final InvMaterialRepository invMaterialRepository;
     private final InvBatchRepository invBatchRepository;
@@ -49,13 +59,14 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     @Autowired
     public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository,
                                      InvCountHeaderMapper invCountHeaderMapper, InvWarehouseService invWarehouseService,
-                                     InvCountLineService invCountLineService,
+                                     InvCountLineService invCountLineService, IamRemoteService iamRemoteService,
                                      InvMaterialRepository invMaterialRepository, InvBatchRepository invBatchRepository,
                                      CodeRuleBuilder codeRuleBuilder) {
         this.invCountHeaderRepository = invCountHeaderRepository;
         this.invCountHeaderMapper = invCountHeaderMapper;
         this.invWarehouseService = invWarehouseService;
         this.invCountLineService = invCountLineService;
+        this.iamRemoteService = iamRemoteService;
         this.invMaterialRepository = invMaterialRepository;
         this.invBatchRepository = invBatchRepository;
         this.codeRuleBuilder = codeRuleBuilder;
@@ -67,7 +78,20 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     @Override
     public Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeader invCountHeader) {
         // TODO: Add request DTO only for list query
-        return PageHelper.doPageAndSort(pageRequest, () -> invCountHeaderRepository.selectList(invCountHeader));
+
+        // Convert to DTO
+        InvCountHeaderDTO invCountHeaderDTO = new InvCountHeaderDTO();
+        BeanUtils.copyProperties(invCountHeader, invCountHeaderDTO);
+
+        // Add value for validation by data permission rule
+        if (getUserVO().getTenantAdminFlag() == null) {
+            // Add filtering if user not admin
+            invCountHeaderDTO.setTenantId(getUserVO().getTenantId());
+            invCountHeaderDTO.setTenantAdminFlag(false);
+        }
+
+        // Perform pagination and sorting
+        return PageHelper.doPageAndSort(pageRequest, () -> invCountHeaderRepository.selectList(invCountHeaderDTO));
     }
 
     /**
@@ -509,6 +533,30 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         return dto;
     }
 
+    ///  //////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// User VO for data permission rule
+
+    private UserVO getUserVO() {
+        ResponseEntity<String> stringResponse = iamRemoteService.selectSelf();
+        ObjectMapper objectMapper = new ObjectMapper();
+        // Fix object mapper error
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        // Set a custom date format that matches the API response
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        objectMapper.setDateFormat(dateFormat);
+        UserVO userVO;
+        try {
+            logger.info(stringResponse.getBody());
+            userVO = objectMapper.readValue(stringResponse.getBody(), UserVO.class);
+        } catch (JsonProcessingException e) {
+            throw new CommonException("Failed to parse response body to UserVO", e);
+        } catch (Exception e) {
+            throw new CommonException("Unexpected error occurred", e);
+        }
+        return userVO;
+    }
 
     private void countingOrderExecuteVerification(List<InvCountHeader> invCountHeaders) {
     }

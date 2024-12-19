@@ -25,7 +25,7 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
 
     private List<InvCountLineDTO> invCountLineDTOList;
 
-    // For detail
+    // For invoice detail
     private List<UserDTO> counterList;
 
     private List<UserDTO> supervisorList;
@@ -35,4 +35,7 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
     private List<BatchDTO> snapshotBatchList;
 
     private Boolean isWMSwarehouse;
+
+    // For data permission rule
+    private boolean tenantAdminFlag;
 }

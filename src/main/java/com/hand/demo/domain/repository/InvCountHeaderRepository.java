@@ -19,7 +19,7 @@ public interface InvCountHeaderRepository extends BaseRepository<InvCountHeader>
      * @param invCountHeader 查询条件
      * @return 返回值
      */
-    List<InvCountHeaderDTO> selectList(InvCountHeader invCountHeader);
+    List<InvCountHeaderDTO> selectList(InvCountHeaderDTO invCountHeader);
 
     /**
      * 根据主键查询（可关联表）

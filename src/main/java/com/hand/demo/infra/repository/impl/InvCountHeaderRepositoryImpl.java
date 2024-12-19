@@ -23,7 +23,7 @@ public class InvCountHeaderRepositoryImpl extends BaseRepositoryImpl<InvCountHea
     private InvCountHeaderMapper invCountHeaderMapper;
 
     @Override
-    public List<InvCountHeaderDTO> selectList(InvCountHeader invCountHeader) {
+    public List<InvCountHeaderDTO> selectList(InvCountHeaderDTO invCountHeader) {
         return invCountHeaderMapper.selectList(invCountHeader);
     }
 
