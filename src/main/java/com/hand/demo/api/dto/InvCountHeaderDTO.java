@@ -23,9 +23,16 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
     @Transient
     private String countStatusMeaning;
 
+    private List<InvCountLineDTO> invCountLineDTOList;
+
+    // For detail
     private List<UserDTO> counterList;
 
     private List<UserDTO> supervisorList;
 
-    private List<InvCountLineDTO> invCountLineDTOList;
+    private List<MaterialDTO> snapshotMaterialList;
+
+    private List<BatchDTO> snapshotBatchList;
+
+    private Boolean isWMSwarehouse;
 }
