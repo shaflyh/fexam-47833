@@ -34,17 +34,25 @@ public interface InvCountHeaderService {
     InvCountHeaderDTO selectDetail(Long countHeaderId);
 
     /**
-     * 保存数据
+     * Create order save
      *
-     * @param invCountHeaders 数据
+     * @param invCountHeaders invCountHeaders
      */
-    void saveData(List<InvCountHeader> invCountHeaders);
+    InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders);
 
     /**
      * Create order save
      *
      * @param invCountHeaders invCountHeaders
      */
-    InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders);
+    InvCountInfoDTO orderRemove(List<InvCountHeader> invCountHeaders);
+
+
+    //    /**
+    //     * 保存数据
+    //     *
+    //     * @param invCountHeaders 数据
+    //     */
+    //    void saveData(List<InvCountHeader> invCountHeaders);
 }
 

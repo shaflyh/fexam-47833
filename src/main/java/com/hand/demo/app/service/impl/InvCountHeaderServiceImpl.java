@@ -11,7 +11,6 @@ import io.choerodon.core.oauth.DetailsHelper;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.hzero.boot.platform.code.builder.CodeRuleBuilder;
-import org.hzero.boot.platform.lov.adapter.LovAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
@@ -94,23 +93,74 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     @Override
-    public void saveData(List<InvCountHeader> invCountHeaders) {
-        List<InvCountHeader> insertList =
-                invCountHeaders.stream().filter(line -> line.getCountHeaderId() == null).collect(Collectors.toList());
-        List<InvCountHeader> updateList =
-                invCountHeaders.stream().filter(line -> line.getCountHeaderId() != null).collect(Collectors.toList());
-        invCountHeaderRepository.batchInsertSelective(insertList);
-        invCountHeaderRepository.batchUpdateByPrimaryKeySelective(updateList);
+    public InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders) {
+        InvCountInfoDTO checkResult = manualSaveCheck(invCountHeaders);
+        // Check if there are errors
+        if (checkResult.getErrorList().isEmpty()) {
+            // Save and update data if all validation success
+            manualSave(invCountHeaders);
+            checkResult.setTotalErrorMsg("All validation successful. Orders saved.");
+        }
+        return checkResult;
     }
 
     @Override
-    public InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders) {
-        InvCountInfoDTO manualSaveCheckResult = manualSaveCheck(invCountHeaders);
-        if (manualSaveCheckResult.getErrorList().isEmpty()) {
-            manualSave(invCountHeaders);
-            manualSaveCheckResult.setTotalErrorMsg("All validation successful. Order saved.");
+    public InvCountInfoDTO orderRemove(List<InvCountHeader> invCountHeaders) {
+        InvCountInfoDTO checkResult = manualRemoveCheck(invCountHeaders);
+        // Check if there are errors
+        if (checkResult.getErrorList().isEmpty()) {
+            // Delete Invoice Headers if all validation success
+            invCountHeaderRepository.batchDeleteByPrimaryKey(invCountHeaders);
+            checkResult.setTotalErrorMsg("All validation successful. Orders deleted.");
         }
-        return manualSaveCheckResult;
+        return checkResult;
+    }
+
+    private InvCountInfoDTO manualRemoveCheck(List<InvCountHeader> invCountHeaders) {
+        // Initialize the response DTO to store lists of successful and erroneous headers
+        InvCountInfoDTO invCountInfoDTO = new InvCountInfoDTO();
+        List<InvCountHeaderDTO> errorList = new ArrayList<>();
+        List<InvCountHeaderDTO> successList = new ArrayList<>();
+
+        Map<Long, InvCountHeader> existingHeadersMap = fetchExistingHeaders(invCountHeaders);
+        for (InvCountHeader header : existingHeadersMap.values()) {
+            InvCountHeaderDTO headerDTO = new InvCountHeaderDTO();
+            BeanUtils.copyProperties(header, headerDTO); // Copy properties from the entity to the DTO
+            Long headerId = headerDTO.getCountHeaderId();
+
+            // Retrieve the corresponding existing header using the header ID
+            InvCountHeader existingHeader = existingHeadersMap.get(headerId);
+            if (existingHeader == null) {
+                // If the existing header is not found, add an error message
+                headerDTO.setErrorMsg("Existing header not found for ID: " + headerId);
+                errorList.add(headerDTO);
+                continue; // Skip to the next header
+            }
+
+            // Validate the delete operation against the existing header
+            String validationError = validateRemove(headerDTO);
+            if (validationError != null) {
+                // If validation fails, set the error message and add to the error list
+                headerDTO.setErrorMsg(validationError);
+                errorList.add(headerDTO);
+            } else {
+                // If validation passes, add the DTO to the success list
+                successList.add(headerDTO);
+            }
+        }
+
+        // Populate the response DTO with the lists of errors and successes
+        invCountInfoDTO.setErrorList(errorList); // Set the list of headers with errors
+        invCountInfoDTO.setSuccessList(successList); // Set the list of successfully processed headers
+
+        // Combine all error messages into a single string for easier reference
+        String totalErrorMsg = errorList.stream().map(InvCountHeaderDTO::getErrorMsg)
+                                        .filter(Objects::nonNull) // Ensure no null messages are included
+                                        .collect(Collectors.joining(", ")); // Join them with a comma separator
+
+        invCountInfoDTO.setTotalErrorMsg(totalErrorMsg); // Set the combined error messages
+
+        return invCountInfoDTO;
     }
 
     private InvCountInfoDTO manualSaveCheck(List<InvCountHeader> invCountHeaders) {
@@ -153,8 +203,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
                 // Validate the update operation against the existing header
                 String validationError = validateUpdate(headerDTO, existingHeader);
-                logger.info("testsjfaskdjflsdjf");
-                logger.info(validationError);
                 if (validationError != null) {
                     // If validation fails, set the error message and add to the error list
                     headerDTO.setErrorMsg(validationError);
@@ -236,7 +284,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // b. Check if the current status allows modification
         Set<String> allowedStatuses = new HashSet<>(Arrays.asList("DRAFT", "INCOUNTING", "REJECTED", "WITHDRAWN"));
         String currentStatus = existingHeader.getCountStatus();
-        logger.info("currentStatus: " + currentStatus);
         if (!allowedStatuses.contains(currentStatus)) {
             return "Only 'Draft', 'In Counting', 'Rejected', and 'Withdrawn' statuses can be modified";
         }
@@ -274,6 +321,28 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             if (!isCounter && !isSupervisor && !isCreator) {
                 return "Only the document creator, counter, or supervisor can modify the document for the status of in counting, rejected, or withdrawn.";
             }
+        }
+        // All validations passed; no error
+        return null;
+    }
+
+    /**
+     * Validates a remove operation on an InvCountHeaderDTO
+     * Returns an error message if any validation fails, otherwise returns null.
+     *
+     * @param headerDTO The DTO representing the header to be removed.
+     * @return Error message if validation fails; otherwise, null.
+     */
+    private String validateRemove(InvCountHeaderDTO headerDTO) {
+        // Status verification: only allow draft status to be deleted
+        if (!headerDTO.getCountStatus().equals("DRAFT")) {
+            return "Only document status draft allowed to be deleted";
+        }
+        // Validate the current user based on the document's status and user roles
+        Long currentOperator = DetailsHelper.getUserDetails().getUserId(); // Get the ID of the current user
+        Long creatorId = headerDTO.getCreatedBy(); // Get the ID of the user who created the document
+        if (!creatorId.equals(currentOperator)) {
+            return "Document can only be deleted by the document creator.";
         }
         // All validations passed; no error
         return null;
@@ -355,6 +424,18 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
     private void countingOrderSyncWMS(List<InvCountHeader> invCountHeaders) {
     }
+
+
+    //    @Override
+    //    public void saveData(List<InvCountHeader> invCountHeaders) {
+    //        List<InvCountHeader> insertList =
+    //                invCountHeaders.stream().filter(line -> line.getCountHeaderId() == null).collect(Collectors.toList());
+    //        List<InvCountHeader> updateList =
+    //                invCountHeaders.stream().filter(line -> line.getCountHeaderId() != null).collect(Collectors.toList());
+    //        invCountHeaderRepository.batchInsertSelective(insertList);
+    //        invCountHeaderRepository.batchUpdateByPrimaryKeySelective(updateList);
+    //    }
+
 
     //    private InvCountInfoDTO saveCheck(List<InvCountHeaderDTO> invCountHeaderDTOS) {
     //        // Initialize the response DTO to store success and error lists
