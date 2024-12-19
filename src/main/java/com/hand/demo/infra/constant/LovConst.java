@@ -6,4 +6,7 @@ package com.hand.demo.infra.constant;
  */
 public class LovConst {
     public static final String INV_COUNT_STATUS = "INV.COUNTING.COUNT_STATUS";
+    public static final String INV_COUNT_DIMENSION = "INV.COUNTING.COUNT_DIMENSION";
+    public static final String INV_COUNT_TYPE = "INV.COUNTING.COUNT_TYPE";
+    public static final String INV_COUNT_MODE = "INV.COUNTING.COUNT_MODE";
 }

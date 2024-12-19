@@ -88,9 +88,21 @@ public class InvCountHeader extends AuditDomain {
     private Long tenantId;
 
     @ApiModelProperty(value = "", required = true)
+    private String countNumber;
+
+    @ApiModelProperty(value = "", required = true)
     @NotBlank(message = ErrorCodeConst.INPUT_BLANK)
     @LovValue(lovCode = LovConst.INV_COUNT_STATUS, message = ErrorCodeConst.INPUT_INVALID)
-    private String countStatus = "DRAFT"; // Default value: DRAFT
+    private String countStatus;
+
+    @LovValue(lovCode = LovConst.INV_COUNT_DIMENSION, message = ErrorCodeConst.INPUT_INVALID)
+    private String countDimension;
+
+    @LovValue(lovCode = LovConst.INV_COUNT_MODE, message = ErrorCodeConst.INPUT_INVALID)
+    private String countMode;
+
+    @LovValue(lovCode = LovConst.INV_COUNT_TYPE, message = ErrorCodeConst.INPUT_INVALID)
+    private String countType;
 
     @NotNull(message = ErrorCodeConst.INPUT_NULL)
     private Long companyId;
@@ -138,18 +150,9 @@ public class InvCountHeader extends AuditDomain {
 
     private String attributeCategory;
 
-    private String countDimension;
-
-    private String countMode;
-
-    @ApiModelProperty(value = "", required = true)
-    private String countNumber;
-
     private String countTimeStr;
 
-    private String countType;
-
-    private Integer delFlag = 0; // Default value 0
+    private Integer delFlag;
 
     private Long departmentId;
 
