@@ -1,5 +1,6 @@
 package com.hand.demo.api.controller.v1;
 
+import com.hand.demo.api.dto.InvCountLineDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.core.iam.ResourceLevel;
 import io.choerodon.mybatis.pagehelper.annotation.SortDefault;
@@ -40,10 +41,10 @@ public class InvCountLineController extends BaseController {
     @ApiOperation(value = "列表")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @GetMapping
-    public ResponseEntity<Page<InvCountLine>> list(InvCountLine invCountLine, @PathVariable Long organizationId,
-                                                   @ApiIgnore @SortDefault(value = InvCountLine.FIELD_COUNT_LINE_ID,
+    public ResponseEntity<Page<InvCountLineDTO>> list(InvCountLine invCountLine, @PathVariable Long organizationId,
+                                                      @ApiIgnore @SortDefault(value = InvCountLine.FIELD_COUNT_LINE_ID,
                                                            direction = Sort.Direction.DESC) PageRequest pageRequest) {
-        Page<InvCountLine> list = invCountLineService.selectList(pageRequest, invCountLine);
+        Page<InvCountLineDTO> list = invCountLineService.selectList(pageRequest, invCountLine);
         return Results.success(list);
     }
 
