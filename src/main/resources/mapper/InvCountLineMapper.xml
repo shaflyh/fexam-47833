@@ -40,7 +40,7 @@
         ficl.object_version_number
     </sql>
 
-    <select id = "selectList" resultType = "com.hand.demo.domain.entity.InvCountLine">
+    <select id = "selectList" resultType = "com.hand.demo.api.dto.InvCountLineDTO">
         select
         <include refid = "BaseSql"/>
         from fexam_inv_count_line ficl
