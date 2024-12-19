@@ -83,12 +83,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         InvCountHeaderDTO invCountHeaderDTO = new InvCountHeaderDTO();
         BeanUtils.copyProperties(invCountHeader, invCountHeaderDTO);
 
-        // Add value for validation by data permission rule
-        if (getUserVO().getTenantAdminFlag() == null) {
-            // Add filtering if user not admin
-            invCountHeaderDTO.setTenantId(getUserVO().getTenantId());
-            invCountHeaderDTO.setTenantAdminFlag(false);
-        }
+        // Check if the user admin or not
+        invCountHeaderDTO.setTenantAdminFlag(getUserVO().getTenantAdminFlag() != null);
 
         // Perform pagination and sorting
         return PageHelper.doPageAndSort(pageRequest, () -> invCountHeaderRepository.selectList(invCountHeaderDTO));

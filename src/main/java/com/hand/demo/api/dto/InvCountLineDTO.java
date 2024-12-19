@@ -12,4 +12,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class InvCountLineDTO extends InvCountLine {
+
+    // For data permission rule
+    private boolean tenantAdminFlag;
 }
