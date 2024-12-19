@@ -77,7 +77,7 @@ public class InvCountHeaderController extends BaseController {
     @PostMapping("/order-save")
     public ResponseEntity<InvCountInfoDTO> orderSave(@PathVariable Long organizationId,
                                                      @RequestBody List<InvCountHeader> invCountHeaders) {
-        validList(invCountHeaders);
+        validList(invCountHeaders, InvCountHeader.Save.class);
         SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
         return Results.success(invCountHeaderService.orderSave(invCountHeaders));
     }
@@ -86,32 +86,44 @@ public class InvCountHeaderController extends BaseController {
     @Permission(level = ResourceLevel.ORGANIZATION)
     @DeleteMapping
     public ResponseEntity<?> orderRemove(@PathVariable Long organizationId,
-                                    @RequestBody List<InvCountHeader> invCountHeaders) {
+                                         @RequestBody List<InvCountHeader> invCountHeaders) {
         SecurityTokenHelper.validToken(invCountHeaders);
         return Results.success(invCountHeaderService.orderRemove(invCountHeaders));
     }
 
-//    @ApiOperation(value = "Delete")
-//    @Permission(level = ResourceLevel.ORGANIZATION)
-//    @DeleteMapping
-//    public ResponseEntity<?> remove(@PathVariable Long organizationId,
-//                                    @RequestBody List<InvCountHeader> invCountHeaders) {
-//        SecurityTokenHelper.validToken(invCountHeaders);
-//        invCountHeaderRepository.batchDeleteByPrimaryKey(invCountHeaders);
-//        return Results.success();
-//    }
+    @ApiOperation(value = "Execute Counting Order")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/order-execution")
+    public ResponseEntity<InvCountInfoDTO> orderExecution(@PathVariable Long organizationId,
+                                                          @RequestBody List<InvCountHeader> invCountHeaders) {
+        validList(invCountHeaders, InvCountHeader.Execute.class);
+        SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
+        return Results.success(invCountHeaderService.executeCheck(invCountHeaders));
+    }
 
-//    @ApiOperation(value = "Create or Update")
-//    @Permission(level = ResourceLevel.ORGANIZATION)
-//    @ProcessCacheValue
-//    @PostMapping
-//    public ResponseEntity<List<InvCountHeader>> save(@PathVariable Long organizationId,
-//                                                     @RequestBody List<InvCountHeader> invCountHeaders) {
-//        validList(invCountHeaders);
-//        SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
-//        invCountHeaders.forEach(item -> item.setTenantId(organizationId));
-//        invCountHeaderService.saveData(invCountHeaders);
-//        return Results.success(invCountHeaders);
-//    }
+
+    //    @ApiOperation(value = "Delete")
+    //    @Permission(level = ResourceLevel.ORGANIZATION)
+    //    @DeleteMapping
+    //    public ResponseEntity<?> remove(@PathVariable Long organizationId,
+    //                                    @RequestBody List<InvCountHeader> invCountHeaders) {
+    //        SecurityTokenHelper.validToken(invCountHeaders);
+    //        invCountHeaderRepository.batchDeleteByPrimaryKey(invCountHeaders);
+    //        return Results.success();
+    //    }
+
+    //    @ApiOperation(value = "Create or Update")
+    //    @Permission(level = ResourceLevel.ORGANIZATION)
+    //    @ProcessCacheValue
+    //    @PostMapping
+    //    public ResponseEntity<List<InvCountHeader>> save(@PathVariable Long organizationId,
+    //                                                     @RequestBody List<InvCountHeader> invCountHeaders) {
+    //        validList(invCountHeaders);
+    //        SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
+    //        invCountHeaders.forEach(item -> item.setTenantId(organizationId));
+    //        invCountHeaderService.saveData(invCountHeaders);
+    //        return Results.success(invCountHeaders);
+    //    }
 }
 

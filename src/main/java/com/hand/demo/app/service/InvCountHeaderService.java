@@ -47,6 +47,13 @@ public interface InvCountHeaderService {
      */
     InvCountInfoDTO orderRemove(List<InvCountHeader> invCountHeaders);
 
+    /**
+     * Execute check
+     *
+     * @param invCountHeaders invCountHeaders
+     */
+    InvCountInfoDTO executeCheck(List<InvCountHeader> invCountHeaders);
+
 
     //    /**
     //     * 保存数据

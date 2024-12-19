@@ -137,6 +137,11 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         return checkResult;
     }
 
+    @Override
+    public InvCountInfoDTO executeCheck(List<InvCountHeader> invCountHeaders) {
+        return null;
+    }
+
     /**
      * Performs the manual save check for the provided headers.
      *

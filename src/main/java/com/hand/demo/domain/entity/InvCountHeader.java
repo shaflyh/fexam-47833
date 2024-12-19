@@ -84,36 +84,39 @@ public class InvCountHeader extends AuditDomain {
     private Long countHeaderId;
 
     @ApiModelProperty(value = "", required = true)
-    @NotNull(message = ErrorCodeConst.INPUT_NULL)
+    @NotNull(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_NULL)
     private Long tenantId;
 
     @ApiModelProperty(value = "", required = true)
     private String countNumber;
 
     @ApiModelProperty(value = "", required = true)
-    @NotBlank(message = ErrorCodeConst.INPUT_BLANK)
+    @NotBlank(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_BLANK)
     @LovValue(lovCode = LovConst.INV_COUNT_STATUS, message = ErrorCodeConst.INPUT_INVALID)
     private String countStatus;
 
+    @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
     @LovValue(lovCode = LovConst.INV_COUNT_DIMENSION, message = ErrorCodeConst.INPUT_INVALID)
     private String countDimension;
 
+    @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
     @LovValue(lovCode = LovConst.INV_COUNT_MODE, message = ErrorCodeConst.INPUT_INVALID)
     private String countMode;
 
+    @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
     @LovValue(lovCode = LovConst.INV_COUNT_TYPE, message = ErrorCodeConst.INPUT_INVALID)
     private String countType;
 
-    @NotNull(message = ErrorCodeConst.INPUT_NULL)
+    @NotNull(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_NULL)
     private Long companyId;
 
-    @NotNull(message = ErrorCodeConst.INPUT_NULL)
+    @NotNull(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_NULL)
     private Long warehouseId;
 
-    @NotBlank(message = ErrorCodeConst.INPUT_BLANK)
+    @NotBlank(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_BLANK)
     private String supervisorIds;
 
-    @NotBlank(message = ErrorCodeConst.INPUT_BLANK)
+    @NotBlank(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_BLANK)
     private String counterIds;
 
     private Date approvedTime;
@@ -150,6 +153,7 @@ public class InvCountHeader extends AuditDomain {
 
     private String attributeCategory;
 
+    @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
     private String countTimeStr;
 
     private Integer delFlag;
@@ -177,7 +181,7 @@ public class InvCountHeader extends AuditDomain {
     public interface Save {
     }
 
-    public interface Update {
+    public interface Execute {
     }
 }
 
