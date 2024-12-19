@@ -53,6 +53,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      */
     @Override
     public Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeader invCountHeader) {
+        // TODO: Add request DTO only for list query
         return PageHelper.doPageAndSort(pageRequest, () -> invCountHeaderRepository.selectList(invCountHeader));
     }
 

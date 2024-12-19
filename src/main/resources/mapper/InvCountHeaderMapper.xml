@@ -53,7 +53,7 @@
 
     <select id = "selectList" resultType = "com.hand.demo.api.dto.InvCountHeaderDTO">
         select
-        <include refid = "BaseSql"/>
+        <include refid="BaseSql"/>
         from fexam_inv_count_header fich
         <where>
             <if test="countHeaderId !=null">
@@ -119,6 +119,7 @@
             <if test="countMode !=null">
                 and fich.count_mode = #{countMode,jdbcType = VARCHAR}
             </if>
+            <!-- Count Number fuzzy search-->
             <if test="countNumber !=null">
                 and fich.count_number LIKE CONCAT('%', #{countNumber,jdbcType = VARCHAR}, '%')
             </if>
@@ -164,8 +165,9 @@
             <if test="sourceSystem !=null">
                 and fich.source_system = #{sourceSystem,jdbcType = VARCHAR}
             </if>
+            <!-- supervisorIds single search-->
             <if test="supervisorIds !=null">
-                and fich.supervisor_ids = #{supervisorIds,jdbcType = OTHER}
+                and FIND_IN_SET(#{supervisorIds,jdbcType = OTHER}, fich.supervisor_ids)
             </if>
             <if test="tenantId !=null">
                 and fich.tenant_id = #{tenantId,jdbcType = INTEGER}
