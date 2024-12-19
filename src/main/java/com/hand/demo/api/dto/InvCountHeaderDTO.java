@@ -4,8 +4,7 @@ import com.hand.demo.domain.entity.InvCountHeader;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Getter;
 import lombok.Setter;
-import org.hzero.common.HZeroCacheKey;
-import org.hzero.core.cache.CacheValue;
+import org.hzero.core.cache.Cacheable;
 
 import javax.persistence.Transient;
 import java.util.List;
@@ -17,21 +16,17 @@ import java.util.List;
 
 @Getter
 @Setter
-public class InvCountHeaderDTO extends InvCountHeader {
+public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
     @ApiModelProperty(value = "Error Message")
     private String errorMsg;
 
     private List<InvCountLineDTO> invCountLineDTOList;
 
+    private List<UserDTO> counterList;
+
+    private List<UserDTO> supervisorList;
+
     @Transient
     private String countStatusMeaning;
 
-    //    @Transient
-    //    @CacheValue(key = HZeroCacheKey.USER, primaryKey = "counterIds", searchKey = "realName",
-    //            structure = CacheValue.DataStructure.LIST_OBJECT)
-    //    private List<String> counterIdsCache;
-    //
-    //    @CacheValue(key = HZeroCacheKey.USER, primaryKey = "supervisorIds", searchKey = "realName",
-    //            structure = CacheValue.DataStructure.LIST_OBJECT)
-    //    private List<String> supervisorIdsCache;
 }

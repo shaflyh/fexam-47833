@@ -2,6 +2,7 @@ package com.hand.demo.app.service.impl;
 
 import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvCountInfoDTO;
+import com.hand.demo.api.dto.UserDTO;
 import com.hand.demo.app.service.InvWarehouseService;
 import com.hand.demo.infra.constant.CodeRuleConst;
 import com.hand.demo.infra.mapper.InvCountHeaderMapper;
@@ -22,7 +23,6 @@ import com.hand.demo.domain.repository.InvCountHeaderRepository;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * (InvCountHeader)应用服务
@@ -36,19 +36,17 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvCountHeaderMapper invCountHeaderMapper;
     private final InvWarehouseService invWarehouseService;
     private final CodeRuleBuilder codeRuleBuilder;
-    private final LovAdapter lovAdapter;
 
     private static final Logger logger = LoggerFactory.getLogger(InvCountHeaderServiceImpl.class);
 
     @Autowired
     public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository,
                                      InvCountHeaderMapper invCountHeaderMapper, InvWarehouseService invWarehouseService,
-                                     CodeRuleBuilder codeRuleBuilder, LovAdapter lovAdapter) {
+                                     CodeRuleBuilder codeRuleBuilder) {
         this.invCountHeaderRepository = invCountHeaderRepository;
         this.invCountHeaderMapper = invCountHeaderMapper;
         this.invWarehouseService = invWarehouseService;
         this.codeRuleBuilder = codeRuleBuilder;
-        this.lovAdapter = lovAdapter;
     }
 
     /*
@@ -64,13 +62,35 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      */
     @Override
     public InvCountHeaderDTO selectDetail(Long countHeaderId) {
+        // Create a new InvCountHeader object with the given countHeaderId
         InvCountHeader countHeader = new InvCountHeader();
         countHeader.setCountHeaderId(countHeaderId);
-        List<InvCountHeaderDTO> invoiceApplyHeaders = invCountHeaderMapper.selectList(countHeader);
-        if (invoiceApplyHeaders.isEmpty()) {
+
+        // Retrieve the list of InvCountHeaderDTO based on countHeader
+        List<InvCountHeaderDTO> invCountHeaderDTOS = invCountHeaderMapper.selectList(countHeader);
+
+        // If no records are found, return null early
+        if (invCountHeaderDTOS.isEmpty()) {
+            // Optionally, log a warning here
             return null;
         }
-        return invoiceApplyHeaders.get(0);
+        // Get the first InvCountHeaderDTO from the list
+        InvCountHeaderDTO invCountHeader = invCountHeaderDTOS.get(0);
+
+        // Parse counter and supervisor IDs from the DTO
+        List<Long> counterIds = parseIds(invCountHeader.getCounterIds());
+        List<Long> supervisorIds = parseIds(invCountHeader.getSupervisorIds());
+
+        // Convert counter and supervisor IDs to UserDTO lists
+        List<UserDTO> counterList = convertIdsToUserDTOs(counterIds);
+        List<UserDTO> supervisorList = convertIdsToUserDTOs(supervisorIds);
+
+        // Set the lists of UserDTOs to the InvCountHeaderDTO
+        invCountHeader.setCounterList(counterList);
+        invCountHeader.setSupervisorList(supervisorList);
+
+        // Return the populated InvCountHeaderDTO
+        return invCountHeader;
     }
 
     @Override
@@ -286,6 +306,27 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             }
         }
         return idList; // Return the list of parsed IDs
+    }
+
+    /**
+     * Converts a list of user IDs to a list of {@link UserDTO} objects.
+     *
+     * <p>This utility method transforms each ID in the provided list into a {@link UserDTO}
+     * with the corresponding {@code userId} set.
+     *
+     * @param ids A list of user IDs to convert.
+     * @return A list of {@link UserDTO} objects corresponding to the provided IDs.
+     * Returns an empty list if the input is {@code null} or empty.
+     */
+    private List<UserDTO> convertIdsToUserDTOs(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return ids.stream().map(id -> {
+            UserDTO userDTO = new UserDTO();
+            userDTO.setUserId(id);
+            return userDTO;
+        }).collect(Collectors.toList());
     }
 
     private void manualSave(List<InvCountHeader> invCountHeaders) {

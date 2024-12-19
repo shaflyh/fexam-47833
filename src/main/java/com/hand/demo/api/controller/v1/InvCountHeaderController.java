@@ -23,7 +23,6 @@ import com.hand.demo.domain.entity.InvCountHeader;
 import com.hand.demo.domain.repository.InvCountHeaderRepository;
 import springfox.documentation.annotations.ApiIgnore;
 
-import javax.validation.Valid;
 import java.util.List;
 
 /**
@@ -50,6 +49,7 @@ public class InvCountHeaderController extends BaseController {
     @ApiOperation(value = "List")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @ProcessLovValue(targetField = BaseConstants.FIELD_BODY)
+    @ProcessCacheValue
     @GetMapping
     public ResponseEntity<Page<InvCountHeaderDTO>> list(InvCountHeader invCountHeader,
                                                         @PathVariable Long organizationId, @ApiIgnore
@@ -62,6 +62,7 @@ public class InvCountHeaderController extends BaseController {
 
     @ApiOperation(value = "Details")
     @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
     @ProcessLovValue(targetField = BaseConstants.FIELD_BODY)
     @GetMapping("/{countHeaderId}/detail")
     public ResponseEntity<InvCountHeaderDTO> detail(@PathVariable Long organizationId,
