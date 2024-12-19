@@ -16,8 +16,6 @@ import javax.persistence.Id;
 import javax.persistence.Table;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
-import java.math.BigDecimal;
-import java.util.Date;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -91,8 +89,8 @@ public class InvCountHeader extends AuditDomain {
 
     @ApiModelProperty(value = "", required = true)
     @NotBlank(message = ErrorCodeConst.INPUT_BLANK)
-    @LovValue(lovCode = LovConst.INV_COUNT_STATUS)
-    private String countStatus;
+    @LovValue(lovCode = LovConst.INV_COUNT_STATUS, message = ErrorCodeConst.INPUT_INVALID)
+    private String countStatus = "DRAFT"; // Default value: DRAFT
 
     @NotNull(message = ErrorCodeConst.INPUT_NULL)
     private Long companyId;
@@ -151,7 +149,7 @@ public class InvCountHeader extends AuditDomain {
 
     private String countType;
 
-    private Integer delFlag;
+    private Integer delFlag = 0; // Default value 0
 
     private Long departmentId;
 
