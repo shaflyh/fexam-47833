@@ -1,17 +1,18 @@
 package com.hand.demo.app.service.impl;
 
 import com.hand.demo.api.dto.InvCountLineDTO;
-import com.hand.demo.infra.util.mapper.InvCountLineDTOMapper;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.hzero.mybatis.domian.Condition;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.hand.demo.app.service.InvCountLineService;
 import org.springframework.stereotype.Service;
 import com.hand.demo.domain.entity.InvCountLine;
 import com.hand.demo.domain.repository.InvCountLineRepository;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,13 +25,10 @@ import java.util.stream.Collectors;
 @Service
 public class InvCountLineServiceImpl implements InvCountLineService {
     private final InvCountLineRepository invCountLineRepository;
-    private final InvCountLineDTOMapper invCountLineDTOMapper;
 
     @Autowired
-    public InvCountLineServiceImpl(InvCountLineRepository invCountLineRepository,
-                                   InvCountLineDTOMapper invCountLineDTOMapper) {
+    public InvCountLineServiceImpl(InvCountLineRepository invCountLineRepository) {
         this.invCountLineRepository = invCountLineRepository;
-        this.invCountLineDTOMapper = invCountLineDTOMapper;
     }
 
     @Override
@@ -56,7 +54,13 @@ public class InvCountLineServiceImpl implements InvCountLineService {
         // Fetch the filtered data
         List<InvCountLine> invCountLines = invCountLineRepository.selectByCondition(condition);
         // return the DTOs
-        return invCountLineDTOMapper.toDtoList(invCountLines);
+        List<InvCountLineDTO> invCountLineDTOS = new ArrayList<>();
+        for(InvCountLine invCountLine : invCountLines) {
+            InvCountLineDTO invCountLineDTO = new InvCountLineDTO();
+            BeanUtils.copyProperties(invCountLine, invCountLineDTO);
+            invCountLineDTOS.add(invCountLineDTO);
+        }
+        return invCountLineDTOS;
     }
 }
 

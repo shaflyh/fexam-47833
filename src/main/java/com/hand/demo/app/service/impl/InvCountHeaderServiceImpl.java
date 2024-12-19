@@ -1,12 +1,16 @@
 package com.hand.demo.app.service.impl;
 
-import com.hand.demo.api.dto.InvCountHeaderDTO;
-import com.hand.demo.api.dto.InvCountInfoDTO;
-import com.hand.demo.api.dto.UserDTO;
+import com.hand.demo.api.dto.*;
+import com.hand.demo.app.service.InvCountLineService;
 import com.hand.demo.app.service.InvWarehouseService;
+import com.hand.demo.domain.entity.InvBatch;
+import com.hand.demo.domain.entity.InvMaterial;
+import com.hand.demo.domain.repository.InvBatchRepository;
+import com.hand.demo.domain.repository.InvMaterialRepository;
 import com.hand.demo.infra.constant.CodeRuleConst;
 import com.hand.demo.infra.mapper.InvCountHeaderMapper;
 import io.choerodon.core.domain.Page;
+import io.choerodon.core.exception.CommonException;
 import io.choerodon.core.oauth.DetailsHelper;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
@@ -34,6 +38,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvCountHeaderRepository invCountHeaderRepository;
     private final InvCountHeaderMapper invCountHeaderMapper;
     private final InvWarehouseService invWarehouseService;
+    private final InvCountLineService invCountLineService;
+    // TODO: Make sure it's okay to call the repository directly
+    private final InvMaterialRepository invMaterialRepository;
+    private final InvBatchRepository invBatchRepository;
     private final CodeRuleBuilder codeRuleBuilder;
 
     private static final Logger logger = LoggerFactory.getLogger(InvCountHeaderServiceImpl.class);
@@ -41,10 +49,15 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     @Autowired
     public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository,
                                      InvCountHeaderMapper invCountHeaderMapper, InvWarehouseService invWarehouseService,
+                                     InvCountLineService invCountLineService,
+                                     InvMaterialRepository invMaterialRepository, InvBatchRepository invBatchRepository,
                                      CodeRuleBuilder codeRuleBuilder) {
         this.invCountHeaderRepository = invCountHeaderRepository;
         this.invCountHeaderMapper = invCountHeaderMapper;
         this.invWarehouseService = invWarehouseService;
+        this.invCountLineService = invCountLineService;
+        this.invMaterialRepository = invMaterialRepository;
+        this.invBatchRepository = invBatchRepository;
         this.codeRuleBuilder = codeRuleBuilder;
     }
 
@@ -57,40 +70,27 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         return PageHelper.doPageAndSort(pageRequest, () -> invCountHeaderRepository.selectList(invCountHeader));
     }
 
-    /*
-     * Select Invoice Count Header detail with countStatusMeaning
+    /**
+     * Service implementation for handling invoice count header details.
      */
     @Override
     public InvCountHeaderDTO selectDetail(Long countHeaderId) {
-        // Create a new InvCountHeader object with the given countHeaderId
-        InvCountHeader countHeader = new InvCountHeader();
-        countHeader.setCountHeaderId(countHeaderId);
-
-        // Retrieve the list of InvCountHeaderDTO based on countHeader
-        List<InvCountHeaderDTO> invCountHeaderDTOS = invCountHeaderMapper.selectList(countHeader);
-
-        // If no records are found, return null early
-        if (invCountHeaderDTOS.isEmpty()) {
-            // Optionally, log a warning here
-            return null;
+        // Fetch the Invoice Header
+        InvCountHeader invCountHeader = invCountHeaderRepository.selectByPrimary(countHeaderId);
+        // If the record is not found, throw error
+        if (invCountHeader == null) {
+            // TODO: Add error const
+            throw new CommonException("Invoice with id " + countHeaderId + " not found");
         }
-        // Get the first InvCountHeaderDTO from the list
-        InvCountHeaderDTO invCountHeader = invCountHeaderDTOS.get(0);
 
-        // Parse counter and supervisor IDs from the DTO
-        List<Long> counterIds = parseIds(invCountHeader.getCounterIds());
-        List<Long> supervisorIds = parseIds(invCountHeader.getSupervisorIds());
+        // Convert to DTO
+        InvCountHeaderDTO invCountHeaderDTO = new InvCountHeaderDTO();
+        BeanUtils.copyProperties(invCountHeader, invCountHeaderDTO);
 
-        // Convert counter and supervisor IDs to UserDTO lists
-        List<UserDTO> counterList = convertIdsToUserDTOs(counterIds);
-        List<UserDTO> supervisorList = convertIdsToUserDTOs(supervisorIds);
+        // Populate the header with related data
+        populateHeaderDetails(invCountHeaderDTO);
 
-        // Set the lists of UserDTOs to the InvCountHeaderDTO
-        invCountHeader.setCounterList(counterList);
-        invCountHeader.setSupervisorList(supervisorList);
-
-        // Return the populated InvCountHeaderDTO
-        return invCountHeader;
+        return invCountHeaderDTO;
     }
 
     @Override
@@ -171,17 +171,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // Populate the response DTO
         populateInvCountInfoDTO(invCountInfoDTO, errorList, successList);
-
-        //        // Populate the response DTO with the lists of errors and successes
-        //        invCountInfoDTO.setErrorList(errorList); // Set the list of headers with errors
-        //        invCountInfoDTO.setSuccessList(successList); // Set the list of successfully processed headers
-        //
-        //        // Combine all error messages into a single string for easier reference
-        //        String totalErrorMsg = errorList.stream().map(InvCountHeaderDTO::getErrorMsg)
-        //                                        .filter(Objects::nonNull) // Ensure no null messages are included
-        //                                        .collect(Collectors.joining(", ")); // Join them with a comma separator
-
-        //        invCountInfoDTO.setTotalErrorMsg(totalErrorMsg); // Set the combined error messages
 
         return invCountInfoDTO;
     }
@@ -430,15 +419,36 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         return idList; // Return the list of parsed IDs
     }
 
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // DETAIL
+
     /**
-     * Converts a list of user IDs to a list of {@link UserDTO} objects.
+     * Populates the InvCountHeaderDTO with related user, material, batch, warehouse, and line details.
      *
-     * <p>This utility method transforms each ID in the provided list into a {@link UserDTO}
-     * with the corresponding {@code userId} set.
+     * @param header the InvCountHeaderDTO to populate
+     */
+    private void populateHeaderDetails(InvCountHeaderDTO header) {
+        // Parse and convert counter and supervisor IDs to UserDTO lists
+        header.setCounterList(convertIdsToUserDTOs(parseIds(header.getCounterIds())));
+        header.setSupervisorList(convertIdsToUserDTOs(parseIds(header.getSupervisorIds())));
+
+        // Populate snapshot materials and batches
+        header.setSnapshotMaterialList(convertToMaterialDTOs(header.getSnapshotMaterialIds()));
+        header.setSnapshotBatchList(convertToBatchDTOs(header.getSnapshotBatchIds()));
+
+        // Determine if the warehouse is a WMS warehouse
+        header.setIsWMSwarehouse(invWarehouseService.isWmsWarehouse(header.getWarehouseId()));
+
+        // Retrieve and set invoice count lines
+        header.setInvCountLineDTOList(invCountLineService.selectListByHeaderId(header.getCountHeaderId()));
+    }
+
+    /**
+     * Converts a list of user IDs to a list of UserDTO.
      *
      * @param ids A list of user IDs to convert.
-     * @return A list of {@link UserDTO} objects corresponding to the provided IDs.
-     * Returns an empty list if the input is {@code null} or empty.
+     * @return A list of UserDTO.
      */
     private List<UserDTO> convertIdsToUserDTOs(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -449,6 +459,54 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             userDTO.setUserId(id);
             return userDTO;
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * Converts a comma-separated string of material IDs to a list of MaterialDTOs.
+     *
+     * @param materialIds the comma-separated material IDs
+     * @return a list of MaterialDTOs
+     */
+    private List<MaterialDTO> convertToMaterialDTOs(String materialIds) {
+        List<InvMaterial> materials = invMaterialRepository.selectByIds(materialIds);
+        return materials.stream().map(this::mapToMaterialDTO).collect(Collectors.toList());
+    }
+
+    /**
+     * Converts a comma-separated string of batch IDs to a list of BatchDTOs.
+     *
+     * @param batchIds the comma-separated batch IDs
+     * @return a list of BatchDTOs
+     */
+    private List<BatchDTO> convertToBatchDTOs(String batchIds) {
+        List<InvBatch> batches = invBatchRepository.selectByIds(batchIds);
+        return batches.stream().map(this::mapToBatchDTO).collect(Collectors.toList());
+    }
+
+    /**
+     * Maps an InvMaterial entity to a MaterialDTO.
+     *
+     * @param material the InvMaterial entity
+     * @return the corresponding MaterialDTO
+     */
+    private MaterialDTO mapToMaterialDTO(InvMaterial material) {
+        MaterialDTO dto = new MaterialDTO();
+        dto.setMaterialId(material.getMaterialId());
+        dto.setMaterialCode(material.getMaterialCode());
+        return dto;
+    }
+
+    /**
+     * Maps an InvBatch entity to a BatchDTO.
+     *
+     * @param batch the InvBatch entity
+     * @return the corresponding BatchDTO
+     */
+    private BatchDTO mapToBatchDTO(InvBatch batch) {
+        BatchDTO dto = new BatchDTO();
+        dto.setBatchId(batch.getBatchId());
+        dto.setBatchCode(batch.getBatchCode());
+        return dto;
     }
 
 
