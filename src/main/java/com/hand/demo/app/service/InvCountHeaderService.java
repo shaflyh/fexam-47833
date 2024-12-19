@@ -16,17 +16,32 @@ import java.util.List;
  */
 public interface InvCountHeaderService {
 
-    /**
-     * 查询数据
-     *
-     * @param pageRequest     分页参数
-     * @param invCountHeaders 查询条件
-     * @return 返回值
-     */
-    Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeader invCountHeaders);
 
     /**
-     * Select detail Invoice Count Header
+     * 1. Counting order save (orderSave)
+     *
+     * @param invCountHeaders invCountHeaders
+     */
+    InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders);
+
+    /**
+     * 2. Counting order remove (orderRemove)
+     *
+     * @param invCountHeaders invCountHeaders
+     */
+    InvCountInfoDTO orderRemove(List<InvCountHeader> invCountHeaders);
+
+    /**
+     * 3.a. Counting order query (list)
+     *
+     * @param pageRequest    分页参数
+     * @param invCountHeader 查询条件
+     * @return 返回值
+     */
+    Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeader invCountHeader);
+
+    /**
+     * 3.b. Counting order query (detail)
      *
      * @param countHeaderId countHeaderId
      * @return InvCountHeaderDTO
@@ -34,32 +49,32 @@ public interface InvCountHeaderService {
     InvCountHeaderDTO selectDetail(Long countHeaderId);
 
     /**
-     * Create order save
+     * 4. Counting order execution (orderExecution)
      *
      * @param invCountHeaders invCountHeaders
      */
-    InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders);
+    InvCountInfoDTO orderExecution(List<InvCountHeader> invCountHeaders);
 
     /**
-     * Create order save
+     * 5. Submit counting results for approval (orderSubmit)
      *
      * @param invCountHeaders invCountHeaders
      */
-    InvCountInfoDTO orderRemove(List<InvCountHeader> invCountHeaders);
+    InvCountInfoDTO orderSubmit(List<InvCountHeader> invCountHeaders);
 
     /**
-     * Execute check
+     * 6. Counting result synchronous (countResultSync)
      *
-     * @param invCountHeaders invCountHeaders
+     * @param invCountHeader invCountHeader
      */
-    InvCountInfoDTO executeCheck(List<InvCountHeader> invCountHeaders);
+    InvCountHeaderDTO countResultSync(InvCountHeader invCountHeader);
 
+    /**
+     * 7. Counting order report dataset method (countingOrderReportDs)
+     *
+     * @param invCountHeader invCountHeader
+     */
+    List<InvCountHeaderDTO> countingOrderReportDs(InvCountHeader invCountHeader);
 
-    //    /**
-    //     * 保存数据
-    //     *
-    //     * @param invCountHeaders 数据
-    //     */
-    //    void saveData(List<InvCountHeader> invCountHeaders);
 }
 

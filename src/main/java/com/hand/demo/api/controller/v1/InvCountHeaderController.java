@@ -36,17 +36,37 @@ import java.util.List;
 @RequestMapping("/v1/{organizationId}/inv-count-headers")
 public class InvCountHeaderController extends BaseController {
 
-    private final InvCountHeaderRepository invCountHeaderRepository;
     private final InvCountHeaderService invCountHeaderService;
 
     @Autowired
-    public InvCountHeaderController(InvCountHeaderRepository invCountHeaderRepository,
-                                    InvCountHeaderService invCountHeaderService) {
-        this.invCountHeaderRepository = invCountHeaderRepository;
+    public InvCountHeaderController(InvCountHeaderService invCountHeaderService) {
         this.invCountHeaderService = invCountHeaderService;
     }
 
-    @ApiOperation(value = "List")
+    // 1. Counting order save (orderSave)
+    @ApiOperation(value = "Save Order")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/order-save")
+    public ResponseEntity<InvCountInfoDTO> orderSave(@PathVariable Long organizationId,
+                                                     @RequestBody List<InvCountHeader> invCountHeaders) {
+        validList(invCountHeaders, InvCountHeader.Save.class);
+        SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
+        return Results.success(invCountHeaderService.orderSave(invCountHeaders));
+    }
+
+    // 2. Counting order remove (orderRemove)
+    @ApiOperation(value = "Delete Order")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @DeleteMapping
+    public ResponseEntity<?> orderRemove(@PathVariable Long organizationId,
+                                         @RequestBody List<InvCountHeader> invCountHeaders) {
+        SecurityTokenHelper.validToken(invCountHeaders);
+        return Results.success(invCountHeaderService.orderRemove(invCountHeaders));
+    }
+
+    // 3.a. Counting order query (list)
+    @ApiOperation(value = "List Order")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @ProcessLovValue(targetField = BaseConstants.FIELD_BODY)
     @ProcessCacheValue
@@ -60,7 +80,8 @@ public class InvCountHeaderController extends BaseController {
         return Results.success(list);
     }
 
-    @ApiOperation(value = "Details")
+    // 3.b. Counting order query (detail)
+    @ApiOperation(value = "Detail Order")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @ProcessCacheValue
     @ProcessLovValue(targetField = BaseConstants.FIELD_BODY)
@@ -71,27 +92,8 @@ public class InvCountHeaderController extends BaseController {
         return Results.success(invCountHeader);
     }
 
-    @ApiOperation(value = "Save Counting Order")
-    @Permission(level = ResourceLevel.ORGANIZATION)
-    @ProcessCacheValue
-    @PostMapping("/order-save")
-    public ResponseEntity<InvCountInfoDTO> orderSave(@PathVariable Long organizationId,
-                                                     @RequestBody List<InvCountHeader> invCountHeaders) {
-        validList(invCountHeaders, InvCountHeader.Save.class);
-        SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
-        return Results.success(invCountHeaderService.orderSave(invCountHeaders));
-    }
-
-    @ApiOperation(value = "Delete Counting Order")
-    @Permission(level = ResourceLevel.ORGANIZATION)
-    @DeleteMapping
-    public ResponseEntity<?> orderRemove(@PathVariable Long organizationId,
-                                         @RequestBody List<InvCountHeader> invCountHeaders) {
-        SecurityTokenHelper.validToken(invCountHeaders);
-        return Results.success(invCountHeaderService.orderRemove(invCountHeaders));
-    }
-
-    @ApiOperation(value = "Execute Counting Order")
+    // 4. Counting order execution (orderExecution)
+    @ApiOperation(value = "Execute Order")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @ProcessCacheValue
     @PostMapping("/order-execution")
@@ -99,31 +101,38 @@ public class InvCountHeaderController extends BaseController {
                                                           @RequestBody List<InvCountHeader> invCountHeaders) {
         validList(invCountHeaders, InvCountHeader.Execute.class);
         SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
-        return Results.success(invCountHeaderService.executeCheck(invCountHeaders));
+        return Results.success(invCountHeaderService.orderExecution(invCountHeaders));
     }
 
+    // 5. Submit counting results for approval (orderSubmit)
+    @ApiOperation(value = "Submit Order")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/order-submit")
+    public ResponseEntity<InvCountInfoDTO> orderSubmit(@PathVariable Long organizationId,
+                                                       @RequestBody List<InvCountHeader> invCountHeaders) {
+        return Results.success(invCountHeaderService.orderSubmit(invCountHeaders));
+    }
 
-    //    @ApiOperation(value = "Delete")
-    //    @Permission(level = ResourceLevel.ORGANIZATION)
-    //    @DeleteMapping
-    //    public ResponseEntity<?> remove(@PathVariable Long organizationId,
-    //                                    @RequestBody List<InvCountHeader> invCountHeaders) {
-    //        SecurityTokenHelper.validToken(invCountHeaders);
-    //        invCountHeaderRepository.batchDeleteByPrimaryKey(invCountHeaders);
-    //        return Results.success();
-    //    }
+    // 6. Counting result synchronous (countResultSync)
+    @ApiOperation(value = "Result Sync Order")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/count-result-sync")
+    public ResponseEntity<InvCountHeaderDTO> countResultSync(@PathVariable Long organizationId,
+                                                             @RequestBody InvCountHeader invCountHeader) {
+        return Results.success(invCountHeaderService.countResultSync(invCountHeader));
+    }
 
-    //    @ApiOperation(value = "Create or Update")
-    //    @Permission(level = ResourceLevel.ORGANIZATION)
-    //    @ProcessCacheValue
-    //    @PostMapping
-    //    public ResponseEntity<List<InvCountHeader>> save(@PathVariable Long organizationId,
-    //                                                     @RequestBody List<InvCountHeader> invCountHeaders) {
-    //        validList(invCountHeaders);
-    //        SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
-    //        invCountHeaders.forEach(item -> item.setTenantId(organizationId));
-    //        invCountHeaderService.saveData(invCountHeaders);
-    //        return Results.success(invCountHeaders);
-    //    }
+    // 7. Counting order report dataset method (countingOrderReportDs)
+    @ApiOperation(value = "Report Dataset Order")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/order-report-dataset")
+    public ResponseEntity<List<InvCountHeaderDTO>> countingOrderReportDs(@PathVariable Long organizationId,
+                                                                         @RequestBody InvCountHeader invCountHeader) {
+        return Results.success(invCountHeaderService.countingOrderReportDs(invCountHeader));
+    }
+
 }
 

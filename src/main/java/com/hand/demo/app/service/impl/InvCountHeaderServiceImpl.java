@@ -45,7 +45,6 @@ import java.util.stream.Collectors;
 @Service
 public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvCountHeaderRepository invCountHeaderRepository;
-    private final InvCountHeaderMapper invCountHeaderMapper;
     private final InvWarehouseService invWarehouseService;
     private final InvCountLineService invCountLineService;
     private final IamRemoteService iamRemoteService;
@@ -57,13 +56,11 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private static final Logger logger = LoggerFactory.getLogger(InvCountHeaderServiceImpl.class);
 
     @Autowired
-    public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository,
-                                     InvCountHeaderMapper invCountHeaderMapper, InvWarehouseService invWarehouseService,
+    public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository, InvWarehouseService invWarehouseService,
                                      InvCountLineService invCountLineService, IamRemoteService iamRemoteService,
                                      InvMaterialRepository invMaterialRepository, InvBatchRepository invBatchRepository,
                                      CodeRuleBuilder codeRuleBuilder) {
         this.invCountHeaderRepository = invCountHeaderRepository;
-        this.invCountHeaderMapper = invCountHeaderMapper;
         this.invWarehouseService = invWarehouseService;
         this.invCountLineService = invCountLineService;
         this.iamRemoteService = iamRemoteService;
@@ -72,26 +69,53 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         this.codeRuleBuilder = codeRuleBuilder;
     }
 
-    /*
-     * Select all Invoice Count Header with countStatusMeaning
+    /**
+     * 1. Counting order save (orderSave)
+     */
+    @Override
+    public InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders) {
+        InvCountInfoDTO checkResult = manualSaveCheck(invCountHeaders);
+        // Check if there are errors
+        if (checkResult.getErrorList().isEmpty()) {
+            // Save and update data if all validation success
+            manualSave(invCountHeaders);
+            checkResult.setTotalErrorMsg("All validation successful. Orders saved.");
+        }
+        return checkResult;
+    }
+
+    /**
+     * 2. Counting order remove (orderRemove)
+     */
+    @Override
+    public InvCountInfoDTO orderRemove(List<InvCountHeader> invCountHeaders) {
+        InvCountInfoDTO checkResult = manualRemoveCheck(invCountHeaders);
+        // Check if there are errors
+        if (checkResult.getErrorList().isEmpty()) {
+            // Delete Invoice Headers if all validation succeeds
+            manualRemove(invCountHeaders);
+            checkResult.setTotalErrorMsg("All validation successful. Orders deleted.");
+        }
+        return checkResult;
+    }
+
+    /**
+     * 3.a. Counting order query (list)
      */
     @Override
     public Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeader invCountHeader) {
         // TODO: Add request DTO only for list query
-
         // Convert to DTO
         InvCountHeaderDTO invCountHeaderDTO = new InvCountHeaderDTO();
         BeanUtils.copyProperties(invCountHeader, invCountHeaderDTO);
-
         // Check if the user admin or not
         invCountHeaderDTO.setTenantAdminFlag(getUserVO().getTenantAdminFlag() != null);
-
         // Perform pagination and sorting
         return PageHelper.doPageAndSort(pageRequest, () -> invCountHeaderRepository.selectList(invCountHeaderDTO));
     }
 
     /**
-     * Service implementation for handling invoice count header details.
+     * 3.b. Counting order query (detail)
      */
     @Override
     public InvCountHeaderDTO selectDetail(Long countHeaderId) {
@@ -113,33 +137,36 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         return invCountHeaderDTO;
     }
 
+    /**
+     * 4. Counting order execution (orderExecution)
+     */
     @Override
-    public InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders) {
-        InvCountInfoDTO checkResult = manualSaveCheck(invCountHeaders);
-        // Check if there are errors
-        if (checkResult.getErrorList().isEmpty()) {
-            // Save and update data if all validation success
-            manualSave(invCountHeaders);
-            checkResult.setTotalErrorMsg("All validation successful. Orders saved.");
-        }
-        return checkResult;
-    }
-
-    @Override
-    public InvCountInfoDTO orderRemove(List<InvCountHeader> invCountHeaders) {
-        InvCountInfoDTO checkResult = manualRemoveCheck(invCountHeaders);
-        // Check if there are errors
-        if (checkResult.getErrorList().isEmpty()) {
-            // Delete Invoice Headers if all validation succeeds
-            manualRemove(invCountHeaders);
-            checkResult.setTotalErrorMsg("All validation successful. Orders deleted.");
-        }
-        return checkResult;
-    }
-
-    @Override
-    public InvCountInfoDTO executeCheck(List<InvCountHeader> invCountHeaders) {
+    public InvCountInfoDTO orderExecution(List<InvCountHeader> invCountHeaders) {
         return null;
+    }
+
+    /**
+     * 5. Submit counting results for approval (orderSubmit)
+     */
+    @Override
+    public InvCountInfoDTO orderSubmit(List<InvCountHeader> invCountHeaders) {
+        return null;
+    }
+
+    /**
+     * 6. Counting result synchronous (countResultSync)
+     */
+    @Override
+    public InvCountHeaderDTO countResultSync(InvCountHeader invCountHeader) {
+        return null;
+    }
+
+    /**
+     * 7. Counting order report dataset method (countingOrderReportDs)
+     */
+    @Override
+    public List<InvCountHeaderDTO> countingOrderReportDs(InvCountHeader invCountHeader) {
+        return Collections.emptyList();
     }
 
     /**
@@ -289,7 +316,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         invCountInfoDTO.setSuccessList(successList);
 
         String totalErrorMsg = errorList.stream().map(InvCountHeaderDTO::getErrorMsg).filter(Objects::nonNull)
-                                        .collect(Collectors.joining(", "));
+                .collect(Collectors.joining(", "));
 
         invCountInfoDTO.setTotalErrorMsg(totalErrorMsg);
     }
