@@ -53,7 +53,7 @@ public class InvCountHeaderController extends BaseController {
     @GetMapping
     public ResponseEntity<Page<InvCountHeaderDTO>> list(InvCountHeader invCountHeader,
                                                         @PathVariable Long organizationId, @ApiIgnore
-                                                        @SortDefault(value = InvCountHeader.FIELD_COUNT_HEADER_ID,
+                                                        @SortDefault(value = InvCountHeader.FIELD_CREATION_DATE,
                                                                 direction = Sort.Direction.DESC)
                                                         PageRequest pageRequest) {
         Page<InvCountHeaderDTO> list = invCountHeaderService.selectList(pageRequest, invCountHeader);
