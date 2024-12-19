@@ -109,74 +109,28 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         InvCountInfoDTO checkResult = manualRemoveCheck(invCountHeaders);
         // Check if there are errors
         if (checkResult.getErrorList().isEmpty()) {
-            // Delete Invoice Headers if all validation success
-            invCountHeaderRepository.batchDeleteByPrimaryKey(invCountHeaders);
+            // Delete Invoice Headers if all validation succeeds
+            manualRemove(invCountHeaders);
             checkResult.setTotalErrorMsg("All validation successful. Orders deleted.");
         }
         return checkResult;
     }
 
-    private InvCountInfoDTO manualRemoveCheck(List<InvCountHeader> invCountHeaders) {
-        // Initialize the response DTO to store lists of successful and erroneous headers
-        InvCountInfoDTO invCountInfoDTO = new InvCountInfoDTO();
-        List<InvCountHeaderDTO> errorList = new ArrayList<>();
-        List<InvCountHeaderDTO> successList = new ArrayList<>();
-
-        Map<Long, InvCountHeader> existingHeadersMap = fetchExistingHeaders(invCountHeaders);
-        for (InvCountHeader header : existingHeadersMap.values()) {
-            InvCountHeaderDTO headerDTO = new InvCountHeaderDTO();
-            BeanUtils.copyProperties(header, headerDTO); // Copy properties from the entity to the DTO
-            Long headerId = headerDTO.getCountHeaderId();
-
-            // Retrieve the corresponding existing header using the header ID
-            InvCountHeader existingHeader = existingHeadersMap.get(headerId);
-            if (existingHeader == null) {
-                // If the existing header is not found, add an error message
-                headerDTO.setErrorMsg("Existing header not found for ID: " + headerId);
-                errorList.add(headerDTO);
-                continue; // Skip to the next header
-            }
-
-            // Validate the delete operation against the existing header
-            String validationError = validateRemove(headerDTO);
-            if (validationError != null) {
-                // If validation fails, set the error message and add to the error list
-                headerDTO.setErrorMsg(validationError);
-                errorList.add(headerDTO);
-            } else {
-                // If validation passes, add the DTO to the success list
-                successList.add(headerDTO);
-            }
-        }
-
-        // Populate the response DTO with the lists of errors and successes
-        invCountInfoDTO.setErrorList(errorList); // Set the list of headers with errors
-        invCountInfoDTO.setSuccessList(successList); // Set the list of successfully processed headers
-
-        // Combine all error messages into a single string for easier reference
-        String totalErrorMsg = errorList.stream().map(InvCountHeaderDTO::getErrorMsg)
-                                        .filter(Objects::nonNull) // Ensure no null messages are included
-                                        .collect(Collectors.joining(", ")); // Join them with a comma separator
-
-        invCountInfoDTO.setTotalErrorMsg(totalErrorMsg); // Set the combined error messages
-
-        return invCountInfoDTO;
-    }
-
+    /**
+     * Performs the manual save check for the provided headers.
+     *
+     * @param invCountHeaders List of InvCountHeader entities to check.
+     * @return InvCountInfoDTO containing validation results.
+     */
     private InvCountInfoDTO manualSaveCheck(List<InvCountHeader> invCountHeaders) {
-        // Initialize the response DTO to store lists of successful and erroneous headers
+        // Initialize the response DTO
         InvCountInfoDTO invCountInfoDTO = new InvCountInfoDTO();
         List<InvCountHeaderDTO> errorList = new ArrayList<>();
         List<InvCountHeaderDTO> successList = new ArrayList<>();
 
-        // Separate the headers into inserts (new entries) and updates (existing entries)
-        List<InvCountHeader> insertList = invCountHeaders.stream().filter(header -> header.getCountHeaderId() ==
-                                                                                    null) // Headers without an ID are inserts
-                                                         .collect(Collectors.toList());
-
-        List<InvCountHeader> updateList = invCountHeaders.stream().filter(header -> header.getCountHeaderId() !=
-                                                                                    null) // Headers with an ID are updates
-                                                         .collect(Collectors.toList());
+        // Separate headers into inserts and updates
+        List<InvCountHeader> insertList = filterHeaders(invCountHeaders, true);
+        List<InvCountHeader> updateList = filterHeaders(invCountHeaders, false);
 
         // Process all insert operations (skip the validation, directly put into the success list)
         successList.addAll(convertToDTOList(insertList));
@@ -214,18 +168,115 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             }
         }
 
-        // Populate the response DTO with the lists of errors and successes
-        invCountInfoDTO.setErrorList(errorList); // Set the list of headers with errors
-        invCountInfoDTO.setSuccessList(successList); // Set the list of successfully processed headers
+        // Populate the response DTO
+        populateInvCountInfoDTO(invCountInfoDTO, errorList, successList);
 
-        // Combine all error messages into a single string for easier reference
-        String totalErrorMsg = errorList.stream().map(InvCountHeaderDTO::getErrorMsg)
-                                        .filter(Objects::nonNull) // Ensure no null messages are included
-                                        .collect(Collectors.joining(", ")); // Join them with a comma separator
+        //        // Populate the response DTO with the lists of errors and successes
+        //        invCountInfoDTO.setErrorList(errorList); // Set the list of headers with errors
+        //        invCountInfoDTO.setSuccessList(successList); // Set the list of successfully processed headers
+        //
+        //        // Combine all error messages into a single string for easier reference
+        //        String totalErrorMsg = errorList.stream().map(InvCountHeaderDTO::getErrorMsg)
+        //                                        .filter(Objects::nonNull) // Ensure no null messages are included
+        //                                        .collect(Collectors.joining(", ")); // Join them with a comma separator
 
-        invCountInfoDTO.setTotalErrorMsg(totalErrorMsg); // Set the combined error messages
+        //        invCountInfoDTO.setTotalErrorMsg(totalErrorMsg); // Set the combined error messages
 
         return invCountInfoDTO;
+    }
+
+    private InvCountInfoDTO manualRemoveCheck(List<InvCountHeader> invCountHeaders) {
+        // Initialize the response DTO
+        InvCountInfoDTO invCountInfoDTO = new InvCountInfoDTO();
+        List<InvCountHeaderDTO> errorList = new ArrayList<>();
+        List<InvCountHeaderDTO> successList = new ArrayList<>();
+
+        // Fetch existing headers
+        Map<Long, InvCountHeader> existingHeadersMap = fetchExistingHeaders(invCountHeaders);
+
+        for (InvCountHeader header : existingHeadersMap.values()) {
+            InvCountHeaderDTO headerDTO = new InvCountHeaderDTO();
+            BeanUtils.copyProperties(header, headerDTO); // Copy properties from the entity to the DTO
+
+            // Validate the delete operation against the existing header
+            String validationError = validateRemove(headerDTO);
+            if (validationError != null) {
+                // If validation fails, set the error message and add to the error list
+                headerDTO.setErrorMsg(validationError);
+                errorList.add(headerDTO);
+            } else {
+                // If validation passes, add the DTO to the success list
+                successList.add(headerDTO);
+            }
+        }
+
+        // Populate the response DTO
+        populateInvCountInfoDTO(invCountInfoDTO, errorList, successList);
+
+        return invCountInfoDTO;
+    }
+
+    /**
+     * Performs the actual save operation after validation.
+     *
+     * @param invCountHeaders List of InvCountHeader entities to save.
+     */
+    private void manualSave(List<InvCountHeader> invCountHeaders) {
+        List<InvCountHeader> insertList = filterHeaders(invCountHeaders, true);
+        List<InvCountHeader> updateList = filterHeaders(invCountHeaders, false);
+
+        // Generate count numbers for new headers with Code Rule Builder
+        for (InvCountHeader countHeader : insertList) {
+            Map<String, String> codeBuilderMap = new HashMap<>();
+            codeBuilderMap.put("customSegment", countHeader.getTenantId().toString() + "-");
+            String invCountNumber = codeRuleBuilder.generateCode(CodeRuleConst.INV_COUNT_NUMBER, codeBuilderMap);
+            countHeader.setCountNumber(invCountNumber);
+        }
+        logger.info("Save and update InvCountHeaders");
+        invCountHeaderRepository.batchInsertSelective(insertList);
+        invCountHeaderRepository.batchUpdateByPrimaryKeySelective(updateList);
+    }
+
+    /**
+     * Performs the actual remove operation after validation.
+     *
+     * @param invCountHeaders List of InvCountHeader entities to remove.
+     */
+    private void manualRemove(List<InvCountHeader> invCountHeaders) {
+        invCountHeaderRepository.batchDeleteByPrimaryKey(invCountHeaders);
+    }
+
+    /**
+     * Filters headers based on whether they are new (insert) or existing (update).
+     *
+     * @param headers  The list of headers to filter.
+     * @param isInsert If true, filters for inserts; else for updates.
+     * @return Filtered list of InvCountHeaders.
+     */
+    private List<InvCountHeader> filterHeaders(List<InvCountHeader> headers, boolean isInsert) {
+        if (isInsert) {
+            return headers.stream().filter(header -> header.getCountHeaderId() == null).collect(Collectors.toList());
+        } else {
+            return headers.stream().filter(header -> header.getCountHeaderId() != null).collect(Collectors.toList());
+        }
+    }
+
+    /**
+     * Populates the InvCountInfoDTO with error and success lists, and combines error messages.
+     *
+     * @param invCountInfoDTO The DTO to populate.
+     * @param errorList       List of headers with errors.
+     * @param successList     List of successfully processed headers.
+     */
+    private void populateInvCountInfoDTO(InvCountInfoDTO invCountInfoDTO, List<InvCountHeaderDTO> errorList,
+                                         List<InvCountHeaderDTO> successList) {
+        invCountInfoDTO.setErrorList(errorList);
+        invCountInfoDTO.setSuccessList(successList);
+
+        String totalErrorMsg = errorList.stream().map(InvCountHeaderDTO::getErrorMsg).filter(Objects::nonNull)
+                                        .collect(Collectors.joining(", "));
+
+        invCountInfoDTO.setTotalErrorMsg(totalErrorMsg);
     }
 
     /**
@@ -250,6 +301,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @return Map of CountHeaderId to InvCountHeader.
      */
     private Map<Long, InvCountHeader> fetchExistingHeaders(List<InvCountHeader> updateList) {
+        // TODO: Check if id may not exist.
         // Extract the set of IDs from the update list
         Set<Long> headerIds = updateList.stream().map(InvCountHeader::getCountHeaderId).collect(Collectors.toSet());
 
@@ -398,23 +450,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }).collect(Collectors.toList());
     }
 
-    private void manualSave(List<InvCountHeader> invCountHeaders) {
-        List<InvCountHeader> insertList =
-                invCountHeaders.stream().filter(line -> line.getCountHeaderId() == null).collect(Collectors.toList());
-        List<InvCountHeader> updateList =
-                invCountHeaders.stream().filter(line -> line.getCountHeaderId() != null).collect(Collectors.toList());
-
-        for (InvCountHeader countHeader : insertList) {
-            // Invoice Count Header number generation with Code Rule Builder
-            Map<String, String> codeBuilderMap = new HashMap<>();
-            codeBuilderMap.put("customSegment", countHeader.getTenantId().toString() + "-");
-            String invCountNumber = codeRuleBuilder.generateCode(CodeRuleConst.INV_COUNT_NUMBER, codeBuilderMap);
-            countHeader.setCountNumber(invCountNumber);
-        }
-        logger.info("Inserting and updating InvCountHeaders...");
-        invCountHeaderRepository.batchInsertSelective(insertList);
-        invCountHeaderRepository.batchUpdateByPrimaryKeySelective(updateList);
-    }
 
     private void countingOrderExecuteVerification(List<InvCountHeader> invCountHeaders) {
     }
