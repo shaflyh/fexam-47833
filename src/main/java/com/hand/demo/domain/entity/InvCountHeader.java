@@ -91,20 +91,20 @@ public class InvCountHeader extends AuditDomain {
     private String countNumber;
 
     @ApiModelProperty(value = "", required = true)
+    @LovValue(lovCode = LovConst.INV_COUNT_STATUS, groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_INVALID)
     @NotBlank(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_BLANK)
-    @LovValue(lovCode = LovConst.INV_COUNT_STATUS, message = ErrorCodeConst.INPUT_INVALID)
     private String countStatus;
 
+    @LovValue(lovCode = LovConst.INV_COUNT_DIMENSION, groups = Execute.class, message = ErrorCodeConst.INPUT_INVALID)
     @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
-    @LovValue(lovCode = LovConst.INV_COUNT_DIMENSION, message = ErrorCodeConst.INPUT_INVALID)
     private String countDimension;
 
+    @LovValue(lovCode = LovConst.INV_COUNT_MODE, groups = Execute.class, message = ErrorCodeConst.INPUT_INVALID)
     @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
-    @LovValue(lovCode = LovConst.INV_COUNT_MODE, message = ErrorCodeConst.INPUT_INVALID)
     private String countMode;
 
+    @LovValue(lovCode = LovConst.INV_COUNT_TYPE, groups = Execute.class, message = ErrorCodeConst.INPUT_INVALID)
     @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
-    @LovValue(lovCode = LovConst.INV_COUNT_TYPE, message = ErrorCodeConst.INPUT_INVALID)
     private String countType;
 
     @NotNull(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_NULL)
