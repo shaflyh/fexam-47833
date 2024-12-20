@@ -7,13 +7,13 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.hand.demo.api.dto.*;
 import com.hand.demo.app.service.InvCountLineService;
+import com.hand.demo.app.service.InvStockService;
 import com.hand.demo.app.service.InvWarehouseService;
 import com.hand.demo.domain.entity.InvBatch;
 import com.hand.demo.domain.entity.InvMaterial;
-import com.hand.demo.domain.repository.InvBatchRepository;
-import com.hand.demo.domain.repository.InvMaterialRepository;
+import com.hand.demo.domain.entity.InvStock;
+import com.hand.demo.domain.repository.*;
 import com.hand.demo.infra.constant.CodeRuleConst;
-import com.hand.demo.infra.mapper.InvCountHeaderMapper;
 import io.choerodon.core.domain.Page;
 import io.choerodon.core.exception.CommonException;
 import io.choerodon.core.oauth.DetailsHelper;
@@ -22,6 +22,7 @@ import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.hzero.boot.apaas.common.userinfo.domain.UserVO;
 import org.hzero.boot.apaas.common.userinfo.infra.feign.IamRemoteService;
 import org.hzero.boot.platform.code.builder.CodeRuleBuilder;
+import org.hzero.mybatis.domian.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
@@ -30,7 +31,6 @@ import com.hand.demo.app.service.InvCountHeaderService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import com.hand.demo.domain.entity.InvCountHeader;
-import com.hand.demo.domain.repository.InvCountHeaderRepository;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -47,25 +47,35 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvCountHeaderRepository invCountHeaderRepository;
     private final InvWarehouseService invWarehouseService;
     private final InvCountLineService invCountLineService;
+    private final IamDepartmentRepository departmentRepository;
     private final IamRemoteService iamRemoteService;
     // TODO: Make sure it's okay to call the repository directly
-    private final InvMaterialRepository invMaterialRepository;
-    private final InvBatchRepository invBatchRepository;
+    private final InvMaterialRepository materialRepository;
+    private final InvBatchRepository batchRepository;
+    private final IamCompanyRepository companyRepository;
+    private final InvWarehouseRepository warehouseRepository;
+    private final InvStockRepository stockRepository;
     private final CodeRuleBuilder codeRuleBuilder;
-
     private static final Logger logger = LoggerFactory.getLogger(InvCountHeaderServiceImpl.class);
+
 
     @Autowired
     public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository, InvWarehouseService invWarehouseService,
                                      InvCountLineService invCountLineService, IamRemoteService iamRemoteService,
-                                     InvMaterialRepository invMaterialRepository, InvBatchRepository invBatchRepository,
+                                     InvMaterialRepository materialRepository, InvBatchRepository batchRepository,
+                                     IamCompanyRepository companyRepository, IamDepartmentRepository departmentRepository,
+                                     InvWarehouseRepository warehouseRepository, InvStockRepository stockRepository,
                                      CodeRuleBuilder codeRuleBuilder) {
         this.invCountHeaderRepository = invCountHeaderRepository;
         this.invWarehouseService = invWarehouseService;
         this.invCountLineService = invCountLineService;
         this.iamRemoteService = iamRemoteService;
-        this.invMaterialRepository = invMaterialRepository;
-        this.invBatchRepository = invBatchRepository;
+        this.materialRepository = materialRepository;
+        this.batchRepository = batchRepository;
+        this.companyRepository = companyRepository;
+        this.departmentRepository = departmentRepository;
+        this.warehouseRepository = warehouseRepository;
+        this.stockRepository = stockRepository;
         this.codeRuleBuilder = codeRuleBuilder;
     }
 
@@ -140,9 +150,17 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     /**
      * 4. Counting order execution (orderExecution)
      */
+    // TODO: Test order execute
     @Override
     public InvCountInfoDTO orderExecution(List<InvCountHeader> invCountHeaders) {
-        return null;
+        InvCountInfoDTO checkResult = manualSaveCheck(invCountHeaders);
+        // Check if there are errors
+        if (checkResult.getErrorList().isEmpty()) {
+            // Save and update data if all validation success
+            manualSave(invCountHeaders);
+            checkResult.setTotalErrorMsg("All validation successful. Orders saved.");
+        }
+        return checkResult;
     }
 
     /**
@@ -177,7 +195,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      */
     private InvCountInfoDTO manualSaveCheck(List<InvCountHeader> invCountHeaders) {
         // Initialize the response DTO
-        InvCountInfoDTO invCountInfoDTO = new InvCountInfoDTO();
+        InvCountInfoDTO checkResult = new InvCountInfoDTO();
         List<InvCountHeaderDTO> errorList = new ArrayList<>();
         List<InvCountHeaderDTO> successList = new ArrayList<>();
 
@@ -209,7 +227,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                 }
 
                 // Validate the update operation against the existing header
-                String validationError = validateUpdate(headerDTO, existingHeader);
+                String validationError = validateSave(headerDTO, existingHeader);
                 if (validationError != null) {
                     // If validation fails, set the error message and add to the error list
                     headerDTO.setErrorMsg(validationError);
@@ -222,9 +240,9 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }
 
         // Populate the response DTO
-        populateInvCountInfoDTO(invCountInfoDTO, errorList, successList);
+        populateInvCountInfoDTO(checkResult, errorList, successList);
 
-        return invCountInfoDTO;
+        return checkResult;
     }
 
     private InvCountInfoDTO manualRemoveCheck(List<InvCountHeader> invCountHeaders) {
@@ -362,14 +380,14 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     * Validates an update operation on an InvCountHeaderDTO against the existing InvCountHeader entity.
+     * Validates save or update operation on an InvCountHeaderDTO against the existing InvCountHeader entity.
      * Returns an error message if any validation fails, otherwise returns null.
      *
      * @param headerDTO      The DTO representing the header to be updated.
      * @param existingHeader The existing header entity from the database.
      * @return Error message if validation fails; otherwise, null.
      */
-    private String validateUpdate(InvCountHeaderDTO headerDTO, InvCountHeader existingHeader) {
+    private String validateSave(InvCountHeaderDTO headerDTO, InvCountHeader existingHeader) {
         // a. Ensure the count status is not being changed
         if (!headerDTO.getCountStatus().equals(existingHeader.getCountStatus())) {
             return "Invoice count status cannot be updated";
@@ -520,7 +538,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @return a list of MaterialDTOs
      */
     private List<MaterialDTO> convertToMaterialDTOs(String materialIds) {
-        List<InvMaterial> materials = invMaterialRepository.selectByIds(materialIds);
+        List<InvMaterial> materials = materialRepository.selectByIds(materialIds);
         return materials.stream().map(this::mapToMaterialDTO).collect(Collectors.toList());
     }
 
@@ -531,7 +549,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @return a list of BatchDTOs
      */
     private List<BatchDTO> convertToBatchDTOs(String batchIds) {
-        List<InvBatch> batches = invBatchRepository.selectByIds(batchIds);
+        List<InvBatch> batches = batchRepository.selectByIds(batchIds);
         return batches.stream().map(this::mapToBatchDTO).collect(Collectors.toList());
     }
 
@@ -586,7 +604,105 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         return userVO;
     }
 
-    private void countingOrderExecuteVerification(List<InvCountHeader> invCountHeaders) {
+    private InvCountInfoDTO executeCheck(List<InvCountHeader> invCountHeaders) {
+        // Initialize the response DTO
+        InvCountInfoDTO checkResult = new InvCountInfoDTO();
+        List<InvCountHeaderDTO> errorList = new ArrayList<>();
+        List<InvCountHeaderDTO> successList = new ArrayList<>();
+
+        // Requery the database based on the input document ID
+        Map<Long, InvCountHeader> existingHeadersMap = fetchExistingHeaders(invCountHeaders);
+
+        // Iterate over each header that needs to be validated
+        for (InvCountHeader header : existingHeadersMap.values()) {
+            InvCountHeaderDTO headerDTO = new InvCountHeaderDTO();
+            BeanUtils.copyProperties(header, headerDTO); // Copy properties from the entity to the DTO
+
+            // Counting time validation
+            String limitFormat = header.getCountTimeStr().equals("MONTH") ? "yyyy-MM" : "yyyy";
+
+            // Validate the update operation against the existing header
+            String validationError = validateExecute(headerDTO);
+            if (validationError != null) {
+                // If validation fails, set the error message and add to the error list
+                headerDTO.setErrorMsg(validationError);
+                errorList.add(headerDTO);
+            } else {
+                // If validation passes, add the DTO to the success list
+                successList.add(headerDTO);
+            }
+        }
+
+        // Populate the response DTO
+        populateInvCountInfoDTO(checkResult, errorList, successList);
+
+        return checkResult;
+    }
+
+    /**
+     * Validates an execute operation on an InvCountHeaderDTO.
+     * Returns an error message if any validation fails, otherwise returns null.
+     *
+     * @param headerDTO The DTO representing the header to be executed.
+     * @return Error message if validation fails; otherwise, null.
+     */
+    private String validateExecute(InvCountHeaderDTO headerDTO) {
+        // a. document status validation: Only draft status can execute
+        if (!"DRAFT".equals(headerDTO.getCountStatus())) {
+            return " Only draft status can execute";
+        }
+
+        // b. current login user validation: Only the document creator can execute
+        if (!headerDTO.getCreatedBy().equals(DetailsHelper.getUserDetails().getUserId())) {
+            return " Only the document creator can execute";
+        }
+
+        // c. value set validation
+        // TODO: Ask mr zeki if we need to validate the value set again.
+
+        // d. company, department, warehouse validation
+        if (companyRepository.selectByPrimary(headerDTO.getCompanyId()) == null) {
+            return "Company does not exist";
+        }
+        if (departmentRepository.selectByPrimary(headerDTO.getDepartmentId()) == null) {
+            return "Department does not exist";
+        }
+        if (warehouseRepository.selectByPrimary(headerDTO.getWarehouseId()) == null) {
+            return "Warehouse does not exist";
+        }
+
+        // e. on hand quantity validation
+        // is not 0 according to the tenantId + companyId + departmentId + warehouseId + snapshotMaterialIds + snapshotBatchIds
+        Condition condition = new Condition(InvStock.class); // Create a condition for the InvStock entity
+
+        // Add fixed conditions
+        condition.createCriteria()
+                .andEqualTo("tenantId", headerDTO.getTenantId())
+                .andEqualTo("companyId", headerDTO.getCompanyId())
+                .andEqualTo("departmentId", headerDTO.getDepartmentId())
+                .andEqualTo("warehouseId", headerDTO.getWarehouseId());
+
+        // Add dynamic list-based conditions for snapshotMaterialIds and snapshotBatchIds
+        if (headerDTO.getSnapshotMaterialIds() != null && !headerDTO.getSnapshotMaterialIds().isEmpty()) {
+            List<String> materialIds = Arrays.asList(headerDTO.getSnapshotMaterialIds().split(","));
+            condition.and().andIn("materialId", materialIds);
+        }
+
+        if (headerDTO.getSnapshotBatchIds() != null && !headerDTO.getSnapshotBatchIds().isEmpty()) {
+            List<String> batchIds = Arrays.asList(headerDTO.getSnapshotBatchIds().split(","));
+            condition.and().andIn("batchId", batchIds);
+        }
+
+        // Query using the stock repository
+        List<InvStock> invStocks = stockRepository.selectByCondition(condition);
+
+        // Handle the result
+        if (invStocks == null || invStocks.isEmpty()) {
+            return "Unable to query on hand quantity data.";
+        }
+
+        // All validations passed; no error
+        return null;
     }
 
     private void countingOrderExecute(List<InvCountHeader> invCountHeaders) {
