@@ -66,7 +66,8 @@ public class Utils {
         // Dummy response for testing purposes
         ResponsePayloadDTO response = new ResponsePayloadDTO();
         // Success example: {code=WMS-2024 12 20 16:47:56114, returnStatus=S, returnMsg=Success sync}
-        response.setBody("{\"code\":\"WMS-2024 12 20 16:47:56114\", \"returnStatus\":\"S\", \"returnMsg\":\"Success sync\"}");
+        // response.setBody("{\"code\":\"WMS-2024 12 20 16:47:56114\", \"returnStatus\":\"S\", \"returnMsg\":\"Success sync\"}");
+        response.setBody("{\"code\":\"WMS-2024 12 20 16:47:56114\", \"returnStatus\":\"E\", \"returnMsg\":\"Error sync\"}");
         // Log the response received
         logger.info("Interface response: {} {}", response.getMessage(), response.getBody());
 

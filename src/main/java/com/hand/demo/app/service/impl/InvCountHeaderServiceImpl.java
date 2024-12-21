@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.hand.demo.app.service.InvCountHeaderService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -96,10 +97,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     public InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders) {
         // 1. Counting order save verification method
         InvCountInfoDTO countInfo = manualSaveCheck(invCountHeaders);
-        if (!countInfo.getErrorList().isEmpty()) {
-            // return if there is any error
-            return countInfo;
-        }
 
         // 2. Counting order save method
         // Save and update data if all validation success
@@ -170,13 +167,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      */
     // TODO: Test order execute
     @Override
+    @Transactional
     public InvCountInfoDTO orderExecution(List<InvCountHeader> invCountHeaders) {
         // 1. Counting order save verification method
         InvCountInfoDTO countInfo = manualSaveCheck(invCountHeaders);
-        if (!countInfo.getErrorList().isEmpty()) {
-            // return if there is any error
-            return countInfo;
-        }
 
         // 2. Counting order save method
         // Save and update data if all validation success
@@ -187,9 +181,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // 3. Counting order execute verification method
         InvCountInfoDTO executeInfoResult = executeCheck(invCountHeaders);
-        if (!executeInfoResult.getErrorList().isEmpty()) {
-            return executeInfoResult;
-        }
 
         // 4. Counting order execute method
         List<InvCountHeaderDTO> executeResult = execute(invCountHeaders);
@@ -199,6 +190,11 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // 5. Counting order synchronization WMS method
         countInfo = countSyncWms(executeResult);
+
+        // Validation error : throw exception and rollback if error list not empty
+        if (!executeInfoResult.getErrorList().isEmpty()) {
+            throw new CommonException("Counting order execution failed: " + executeInfoResult.getTotalErrorMsg());
+        }
 
         return countInfo;
     }
@@ -291,6 +287,11 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // Populate the response DTO
         populateInvCountInfoDTO(checkResult, errorList, successList);
+
+        // throw exception if error list not empty
+        if (!errorList.isEmpty()) {
+            throw new CommonException("Counting order save failed: " + checkResult.getTotalErrorMsg());
+        }
 
         return checkResult;
     }
