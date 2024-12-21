@@ -62,6 +62,11 @@ public class InvCountExtraServiceImpl implements InvCountExtraService {
         return invCountExtraRepository.select(query);
     }
 
+
+    /**
+     * Saves synchronization extras to the database.
+     * Keep the saved data in database even on transaction rollback
+     */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveExtras(InvCountExtra... extras) {

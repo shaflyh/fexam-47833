@@ -43,6 +43,7 @@ public interface InvCountExtraService {
 
     /**
      * Saves synchronization extras to the database.
+     * Keep the saved data in database even on transaction rollback
      *
      * @param extras Varargs of InvCountExtra objects to save.
      */
