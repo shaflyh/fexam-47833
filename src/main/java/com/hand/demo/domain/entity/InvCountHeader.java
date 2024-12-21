@@ -84,10 +84,11 @@ public class InvCountHeader extends AuditDomain {
     private Long countHeaderId;
 
     @ApiModelProperty(value = "", required = true)
-    @NotNull(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_NULL)
+    @NotNull(groups = {Save.class, Execute.class, ResultSync.class}, message = ErrorCodeConst.INPUT_NULL)
     private Long tenantId;
 
     @ApiModelProperty(value = "", required = true)
+    @NotBlank(groups = {ResultSync.class}, message = ErrorCodeConst.INPUT_BLANK)
     private String countNumber;
 
     @ApiModelProperty(value = "", required = true)
@@ -182,6 +183,9 @@ public class InvCountHeader extends AuditDomain {
     }
 
     public interface Execute {
+    }
+
+    public interface ResultSync {
     }
 }
 

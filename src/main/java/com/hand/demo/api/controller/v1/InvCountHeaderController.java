@@ -121,6 +121,7 @@ public class InvCountHeaderController extends BaseController {
     @PostMapping("/count-result-sync")
     public ResponseEntity<InvCountHeaderDTO> countResultSync(@PathVariable Long organizationId,
                                                              @RequestBody InvCountHeader invCountHeader) {
+        validObject(invCountHeader, InvCountHeader.ResultSync.class);
         return Results.success(invCountHeaderService.countResultSync(invCountHeader));
     }
 
