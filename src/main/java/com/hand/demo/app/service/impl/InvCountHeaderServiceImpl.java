@@ -6,11 +6,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.hand.demo.api.dto.*;
+import com.hand.demo.app.service.InvCountExtraService;
 import com.hand.demo.app.service.InvCountLineService;
 import com.hand.demo.app.service.InvWarehouseService;
 import com.hand.demo.domain.entity.*;
 import com.hand.demo.domain.repository.*;
 import com.hand.demo.infra.constant.CodeRuleConst;
+import com.hand.demo.infra.util.Utils;
 import io.choerodon.core.domain.Page;
 import io.choerodon.core.exception.CommonException;
 import io.choerodon.core.oauth.DetailsHelper;
@@ -29,6 +31,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,8 +46,9 @@ import java.util.stream.Collectors;
 @Service
 public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvCountHeaderRepository invCountHeaderRepository;
-    private final InvWarehouseService invWarehouseService;
+    private final InvWarehouseService warehouseService;
     private final InvCountLineService invCountLineService;
+    private final InvCountExtraService extraService;
     private final IamDepartmentRepository departmentRepository;
     private final IamRemoteService iamRemoteService;
     // TODO: Make sure it's okay to call the repository directly. p.s: no, it's bad practice
@@ -52,20 +58,24 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvWarehouseRepository warehouseRepository;
     private final InvStockRepository stockRepository;
     private final InvCountLineRepository lineRepository;
+    private final InvCountExtraRepository extraRepository;
     private final CodeRuleBuilder codeRuleBuilder;
+    private final Utils utils;
     private static final Logger logger = LoggerFactory.getLogger(InvCountHeaderServiceImpl.class);
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
 
     @Autowired
-    public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository, InvWarehouseService invWarehouseService,
-                                     InvCountLineService invCountLineService, IamRemoteService iamRemoteService,
+    public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository, InvWarehouseService warehouseService,
+                                     InvCountLineService invCountLineService, InvCountExtraService extraService, IamRemoteService iamRemoteService,
                                      InvMaterialRepository materialRepository, InvBatchRepository batchRepository,
                                      IamCompanyRepository companyRepository, IamDepartmentRepository departmentRepository,
-                                     InvWarehouseRepository warehouseRepository, InvStockRepository stockRepository, InvCountLineRepository lineRepository,
-                                     CodeRuleBuilder codeRuleBuilder) {
+                                     InvWarehouseRepository warehouseRepository, InvStockRepository stockRepository, InvCountLineRepository lineRepository, InvCountExtraRepository extraRepository,
+                                     CodeRuleBuilder codeRuleBuilder, Utils utils) {
         this.invCountHeaderRepository = invCountHeaderRepository;
-        this.invWarehouseService = invWarehouseService;
+        this.warehouseService = warehouseService;
         this.invCountLineService = invCountLineService;
+        this.extraService = extraService;
         this.iamRemoteService = iamRemoteService;
         this.materialRepository = materialRepository;
         this.batchRepository = batchRepository;
@@ -74,7 +84,9 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         this.warehouseRepository = warehouseRepository;
         this.stockRepository = stockRepository;
         this.lineRepository = lineRepository;
+        this.extraRepository = extraRepository;
         this.codeRuleBuilder = codeRuleBuilder;
+        this.utils = utils;
     }
 
     /**
@@ -183,8 +195,12 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         List<InvCountHeaderDTO> executeResult = execute(invCountHeaders);
         // Update the header info with latest data after execute
         executeInfoResult.setSuccessList(executeResult);
+        countInfo.setTotalErrorMsg("All validation successful. Orders executed.");
 
-        return executeInfoResult;
+        // 5. Counting order synchronization WMS method
+        countInfo = countSyncWms(executeResult);
+
+        return countInfo;
     }
 
     /**
@@ -382,15 +398,39 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     /**
      * Converts a list of InvCountHeader entities to a list of InvCountHeaderDTOs.
      *
-     * @param headers List of InvCountHeader entities to convert.
+     * @param headerList List of InvCountHeader entities to convert.
      * @return List of InvCountHeaderDTOs.
      */
-    private List<InvCountHeaderDTO> convertToDTOList(List<InvCountHeader> headers) {
-        return headers.stream().map(header -> {
+    private List<InvCountHeaderDTO> convertToDTOList(List<InvCountHeader> headerList) {
+        return headerList.stream().map(header -> {
             InvCountHeaderDTO dto = new InvCountHeaderDTO();
             BeanUtils.copyProperties(header, dto); // Copy properties from entity to DTO
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * Converts InvCountHeader entities to InvCountHeaderDTO.
+     *
+     * @param headers InvCountHeader to convert.
+     * @return InvCountHeaderDTO.
+     */
+    private InvCountHeaderDTO convertToDTO(InvCountHeader headers) {
+        InvCountHeaderDTO invCountHeaderDTO = new InvCountHeaderDTO();
+        BeanUtils.copyProperties(headers, invCountHeaderDTO);
+        return invCountHeaderDTO;
+    }
+
+    /**
+     * Converts InvCountHeader entities to InvCountHeaderDTO.
+     *
+     * @param line InvCountLine to convert.
+     * @return InvCountLineDTO.
+     */
+    private InvCountLineDTO convertLineToDTO(InvCountLine line) {
+        InvCountLineDTO invCountLineDTO = new InvCountLineDTO();
+        BeanUtils.copyProperties(line, invCountLineDTO);
+        return invCountLineDTO;
     }
 
     /**
@@ -417,6 +457,30 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             headersMap.put(header.getCountHeaderId(), header);
         }
         return headersMap;
+    }
+
+    /**
+     * Fetches existing InvCountLines from the repository based on the lines input
+     *
+     * @param lineList List of InvCountLine entities that need to be updated.
+     * @return Map of CountLineId to InvCountLine.
+     */
+    private Map<Long, InvCountLine> fetchExistingLines(List<InvCountLine> lineList) {
+        // Extract the set of IDs from the update list
+        Set<Long> lineIds = lineList.stream().map(InvCountLine::getCountLineId).collect(Collectors.toSet());
+
+        // Convert the set of IDs to a comma-separated string for the repository query
+        String idString = lineIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+
+        // Fetch the existing lines from the repository using the comma-separated IDs
+        List<InvCountLine> fetchedLines = lineRepository.selectByIds(idString);
+
+        // Create a map from CountLineId to InvCountLine
+        Map<Long, InvCountLine> linesMap = new HashMap<>();
+        for (InvCountLine line : fetchedLines) {
+            linesMap.put(line.getCountLineId(), line);
+        }
+        return linesMap;
     }
 
     /**
@@ -458,7 +522,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             List<Long> counterIds = parseIds(existingHeader.getCounterIds());
 
             // Check if the warehouse is a WMS warehouse
-            boolean isWmsWarehouse = invWarehouseService.isWmsWarehouse(headerDTO.getWarehouseId());
+            boolean isWmsWarehouse = warehouseService.isWmsWarehouse(headerDTO.getWarehouseId());
 
             // If it's a WMS warehouse, only supervisors are allowed to operate
             if (isWmsWarehouse && !supervisorIds.contains(currentOperator)) {
@@ -548,10 +612,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         header.setSnapshotBatchList(convertToBatchDTOs(header.getSnapshotBatchIds()));
 
         // Determine if the warehouse is a WMS warehouse
-        header.setIsWMSwarehouse(invWarehouseService.isWmsWarehouse(header.getWarehouseId()));
+        header.setIsWMSwarehouse(warehouseService.isWmsWarehouse(header.getWarehouseId()));
 
         // Retrieve and set invoice count lines
-        header.setInvCountLineDTOList(invCountLineService.selectListByHeaderId(header.getCountHeaderId()));
+        header.setCountOrderLineList(invCountLineService.selectListByHeaderId(header.getCountHeaderId()));
     }
 
     /**
@@ -621,7 +685,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
     ///  //////////////////////////////////////////////////////////////////////////////////////////////////////
     /// User VO for data permission rule
-
+    /// TODO: Move this to utils
     private UserVO getUserVO() {
         ResponseEntity<String> stringResponse = iamRemoteService.selectSelf();
         ObjectMapper objectMapper = new ObjectMapper();
@@ -714,6 +778,22 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             return "Unable to query on hand quantity data.";
         }
 
+        // TODO: Check Date validation
+        // Updates the countTimeStr field of a HeaderDTO object by formatting it based
+        // on the countType field. If the countType is "MONTH", the time is formatted
+        // as "yyyy-MM". If the countType is "YEAR", it is formatted as "yyyy".
+        String limitFormat = headerDTO.getCountType().equals("MONTH") ? "yyyy-MM" : "yyyy";
+        String time = headerDTO.getCountTimeStr();
+        try {
+            // Parse the input time string
+            LocalDateTime dateTime = LocalDateTime.parse(time, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            // Format the time string based on the limitFormat
+            String formattedTime = dateTime.format(DateTimeFormatter.ofPattern(limitFormat));
+            headerDTO.setCountTimeStr(formattedTime);
+        } catch (DateTimeParseException e) {
+            throw new CommonException("Invalid date format: " + time);
+        }
+
         // All validations passed; no error
         return null;
     }
@@ -744,28 +824,40 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         return stockRepository.selectByCondition(condition);
     }
 
+    /**
+     * Executes the counting process for the provided headers.
+     * <p>
+     * This method performs the following:
+     * 1. Updates the counting status to "INCOUNTING".
+     * 2. Fetches stock data for each header to generate line data.
+     * 3. Summarizes stock data based on the counting dimension and saves lines to the database.
+     * 4. Updates the headers with the latest data and returns them as DTOs.
+     *
+     * @param invCountHeaders List of InvCountHeader entities to process.
+     * @return List of InvCountHeaderDTOs containing updated headers and associated lines.
+     */
     private List<InvCountHeaderDTO> execute(List<InvCountHeader> invCountHeaders) {
-        List<InvCountHeaderDTO> headerResults = new ArrayList<>();
 
-        // Fetch existing headers from the repository and map them by their ID for quick access
+        // Fetch existing headers
         Map<Long, InvCountHeader> existingHeadersMap = fetchExistingHeaders(invCountHeaders);
 
-        int index = 1; // Natural serial number for line counting
+        // Store all lines that will generated
         List<InvCountLine> totalLines = new ArrayList<>();
         for (InvCountHeader header : existingHeadersMap.values()) {
-            // 1. Update the counting order status to "In counting"
+            // 1. Update the counting order status to "INCOUNTING"
             header.setCountStatus("INCOUNTING");
 
-            // 2. Get stock data to generate row data
+            // 2. Fetch valid stock data for the header
             InvCountHeaderDTO headerDTO = new InvCountHeaderDTO();
             BeanUtils.copyProperties(header, headerDTO);
             List<InvStock> invStocks = fetchValidStocks(headerDTO);
 
-            // 3. Summarize according to the counting dimension and save the data in the counting order line table.
-            // Initialize line list
+            // 3. Generate line data based on the fetched stocks
+            // Summarize according to the counting dimension and save the data in the counting order line table.
             List<InvCountLine> lines = new ArrayList<>();
+            int index = 1; // Natural serial number for line counting
             for (InvStock stock : invStocks) {
-                // Create Invoice Line from stock data
+                // Create an invoice line from stock data
                 // TODO: Make sure if this implementation is correct
                 lines.add(generateInvCountLine(header, stock, index));
                 index++;
@@ -773,26 +865,26 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
             totalLines.addAll(lines);
 
-            // TODO: Date validation
-            // String limitFormat = headerDTO.getCountType().equals("MONTH") ? "yyyy-MM" : "yyyy";
-            // String time = headerDTO.getCountTimeStr();
-            // headerDTO.setCountTimeStr();
-
-            // TODO: change the input to just line entity to reduce boiler plate ing converting
-            List<InvCountLineDTO> invCountLineDTOS = new ArrayList<>();
-            for (InvCountLine invCountLine : lines) {
-                InvCountLineDTO invCountLineDTO = new InvCountLineDTO();
-                BeanUtils.copyProperties(invCountLine, invCountLineDTO);
-                invCountLineDTOS.add(invCountLineDTO);
-            }
-            headerDTO.setInvCountLineDTOList(invCountLineDTOS);
-            headerResults.add(headerDTO);
         }
         // Save all line data to database and update the header
         lineRepository.batchInsertSelective(totalLines);
-        invCountHeaderRepository.batchUpdateByPrimaryKeySelective(new ArrayList<>(existingHeadersMap.values()));
+        List<InvCountHeader> latestHeaders = invCountHeaderRepository.batchUpdateByPrimaryKeySelective(new ArrayList<>(existingHeadersMap.values()));
+        // Fetch again the line data
+        Map<Long, InvCountLine> lineMap = fetchExistingLines(totalLines);
+        // Return the Header DTOs result
+        List<InvCountHeaderDTO> headerDTOS = convertToDTOList(latestHeaders);
+        // Attach lines to their respective headers
+        for (InvCountHeaderDTO headerDTO : headerDTOS) {
+            // Filter and map lines that belong to the current header
+            List<InvCountLineDTO> lineDTOS = lineMap.values().stream()
+                    .filter(line -> line.getCountHeaderId().equals(headerDTO.getCountHeaderId()))
+                    .map(this::convertLineToDTO) // Convert line entities to DTOs
+                    .collect(Collectors.toList());
+            // Attach lines to the header DTO
+            headerDTO.setCountOrderLineList(lineDTOS);
+        }
 
-        return headerResults;
+        return headerDTOS;
     }
 
     // Create Invoice Line from stock data
@@ -803,15 +895,16 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         line.setLineNumber(index);
         line.setWarehouseId(header.getWarehouseId());
         line.setCounterIds(header.getCounterIds());
+        line.setSnapshotUnitQty(stock.getUnitQuantity());
 
-        // If the counting dimension = SKU, summarize by material;
+        // If the counting dimension = SKU, summarize by material
         // TODO: Make sure if this implementation is correct (it feels wrong)
         if (header.getCountDimension().equals("SKU")) {
             // TODO: Check material code column is not exist in the table.
             line.setMaterialId(stock.getMaterialId());
             line.setUnitCode(stock.getUnitCode());
         }
-        // If the counting dimension = LOT, summarize by material + batch;
+        // If the counting dimension = LOT, summarize by material + batch
         if (header.getCountDimension().equals("LOT")) {
             line.setMaterialId(stock.getMaterialId());
             line.setUnitCode(stock.getUnitCode());
@@ -820,11 +913,90 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         return line;
     }
 
+    /**
+     * Synchronizes the counting orders with the WMS system.
+     * <p>
+     * This method performs the following steps:
+     * 1. Validates if the warehouse exists for each counting order.
+     * 2. Checks if the warehouse is a WMS warehouse and pushes the order to the WMS system.
+     * 3. Updates the headers with the WMS order code and stores synchronization results in the database.
+     *
+     * @param invCountHeaders List of counting headers to synchronize with WMS.
+     * @return InvCountInfoDTO containing the result of the synchronization, including updated headers.
+     * @throws CommonException if validation or API calls fail.
+     */
+    public InvCountInfoDTO countSyncWms(List<InvCountHeaderDTO> invCountHeaders) {
+        // Iterate over each counting header to process synchronization
+        for (InvCountHeaderDTO header : invCountHeaders) {
+            Long tenantId = header.getTenantId();
+            Long warehouseId = header.getWarehouseId();
+            Long countHeaderId = header.getCountHeaderId();
 
-    private void countingOrderExecute(List<InvCountHeader> invCountHeaders) {
+            // Validate warehouse existence by tenantId and warehouseCode
+            InvWarehouse warehouse = warehouseService.validateWarehouse(tenantId, warehouseId);
+
+            // Fetch existing extras or initialize if none found
+            List<InvCountExtra> fetchedExtras = extraService.fetchExtrasByHeaderId(countHeaderId);
+            if (fetchedExtras.isEmpty()) {
+                // Initialize synchronization extras
+                InvCountExtra syncStatusExtra = extraService.createExtra(tenantId, countHeaderId, "wms_sync_status");
+                InvCountExtra syncMsgExtra = extraService.createExtra(tenantId, countHeaderId, "wms_sync_error_message");
+
+                // Check if the warehouse is a WMS warehouse and call the WMS interface to synchronize the counting order
+                if (warehouse.getIsWmsWarehouse().equals(1)) {
+                    // Set employee number from the current user for interface parameter
+                    header.setEmployeeNumber(getUserVO().getLoginName());
+
+                    // Serialize header to JSON
+                    String headerJson = serializeHeader(header);
+
+                    // Call WMS API and handle response
+                    Map<String, Object> responseBody = utils.callWmsApiPushCountOrder(
+                            "HZERO", "FEXAM_WMS", "fexam-wms-api.thirdAddCounting", headerJson);
+
+                    // Check returnStatus and handle logic
+                    String returnStatus = (String) responseBody.get("returnStatus");
+                    if ("S".equals(returnStatus)) { // Success case
+                        syncStatusExtra.setProgramValue("SUCCESS");
+                        syncMsgExtra.setProgramValue("");
+                        // Record WMS document number
+                        header.setRelatedWmsOrderCode((String) responseBody.get("code"));
+                    } else { // Error case
+                        syncStatusExtra.setProgramValue("ERROR");
+                        syncMsgExtra.setProgramValue((String) responseBody.get("returnMsg"));
+                    }
+                } else {
+                    // Not a WMS warehouse
+                    syncStatusExtra.setProgramValue("SKIP");
+                }
+                // Save synchronization extras
+                extraService.saveExtras(syncStatusExtra, syncMsgExtra);
+            }
+        }
+
+        // Update headers (for WMS order code) and return results
+        List<InvCountHeader> updatedHeaders = invCountHeaderRepository.batchUpdateOptional(
+                new ArrayList<>(invCountHeaders), InvCountHeader.FIELD_RELATED_WMS_ORDER_CODE);
+
+        InvCountInfoDTO result = new InvCountInfoDTO();
+        result.setSuccessList(convertToDTOList(updatedHeaders));
+        return result;
     }
 
-    private void countingOrderSyncWMS(List<InvCountHeader> invCountHeaders) {
+
+    /**
+     * Serializes the counting header to a JSON string.
+     *
+     * @param header The counting header.
+     * @return JSON representation of the header.
+     * @throws CommonException If serialization fails.
+     */
+    private String serializeHeader(InvCountHeaderDTO header) {
+        try {
+            return objectMapper.writeValueAsString(header);
+        } catch (JsonProcessingException e) {
+            throw new CommonException("Failed to serialize header to JSON.", e);
+        }
     }
 
 

@@ -20,8 +20,12 @@ import java.util.stream.Collectors;
  */
 @Service
 public class InvCountExtraServiceImpl implements InvCountExtraService {
+    private final InvCountExtraRepository invCountExtraRepository;
+
     @Autowired
-    private InvCountExtraRepository invCountExtraRepository;
+    public InvCountExtraServiceImpl(InvCountExtraRepository invCountExtraRepository) {
+        this.invCountExtraRepository = invCountExtraRepository;
+    }
 
     @Override
     public Page<InvCountExtra> selectList(PageRequest pageRequest, InvCountExtra invCountExtra) {
@@ -37,5 +41,31 @@ public class InvCountExtraServiceImpl implements InvCountExtraService {
         invCountExtraRepository.batchInsertSelective(insertList);
         invCountExtraRepository.batchUpdateByPrimaryKeySelective(updateList);
     }
+
+    @Override
+    public InvCountExtra createExtra(Long tenantId, Long sourceId, String programKey) {
+        InvCountExtra extra = new InvCountExtra();
+        extra.setTenantId(tenantId);
+        extra.setSourceId(sourceId);
+        extra.setEnabledFlag(1);
+        extra.setProgramKey(programKey);
+        return extra;
+    }
+
+    @Override
+    public List<InvCountExtra> fetchExtrasByHeaderId(Long countHeaderId) {
+        InvCountExtra query = new InvCountExtra();
+        query.setEnabledFlag(1);
+        query.setSourceId(countHeaderId);
+        return invCountExtraRepository.select(query);
+    }
+
+    @Override
+    public void saveExtras(InvCountExtra... extras) {
+        for (InvCountExtra extra : extras) {
+            invCountExtraRepository.insertSelective(extra);
+        }
+    }
+
 }
 

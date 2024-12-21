@@ -23,7 +23,7 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
     @Transient
     private String countStatusMeaning;
 
-    private List<InvCountLineDTO> invCountLineDTOList;
+    private List<InvCountLineDTO> countOrderLineList;
 
     // For invoice detail
     private List<UserDTO> counterList;
@@ -38,4 +38,7 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
 
     // For data permission rule
     private boolean tenantAdminFlag;
+
+    // For countSyncWms
+    private String employeeNumber;
 }

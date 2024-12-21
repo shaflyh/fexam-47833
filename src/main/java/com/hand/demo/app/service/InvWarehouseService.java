@@ -36,5 +36,14 @@ public interface InvWarehouseService {
      * @param warehouseId warehouseId
      */
     boolean isWmsWarehouse(Long warehouseId);
+
+    /**
+     * Validates the existence of a warehouse based on tenant and warehouse ID.
+     *
+     * @param tenantId    The ID of the tenant.
+     * @param warehouseId The ID of the warehouse.
+     * @return The validated InvWarehouse object.
+     */
+     InvWarehouse validateWarehouse(Long tenantId, Long warehouseId);
 }
 

@@ -30,5 +30,22 @@ public interface InvCountExtraService {
      */
     void saveData(List<InvCountExtra> invCountExtras);
 
+
+    InvCountExtra createExtra(Long tenantId, Long sourceId, String programKey);
+
+    /**
+     * Fetches synchronization extras for a given count header ID.
+     *
+     * @param countHeaderId The counting header ID.
+     * @return List of InvCountExtra objects.
+     */
+    List<InvCountExtra> fetchExtrasByHeaderId(Long countHeaderId);
+
+    /**
+     * Saves synchronization extras to the database.
+     *
+     * @param extras Varargs of InvCountExtra objects to save.
+     */
+     void saveExtras(InvCountExtra... extras);
 }
 

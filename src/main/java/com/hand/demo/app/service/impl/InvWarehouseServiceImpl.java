@@ -1,6 +1,7 @@
 package com.hand.demo.app.service.impl;
 
 import io.choerodon.core.domain.Page;
+import io.choerodon.core.exception.CommonException;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,18 @@ public class InvWarehouseServiceImpl implements InvWarehouseService {
     public boolean isWmsWarehouse(Long warehouseId) {
         InvWarehouse invWarehouse = invWarehouseRepository.selectByPrimaryKey(warehouseId);
         return invWarehouse.getIsWmsWarehouse().equals(1);
+    }
+
+    @Override
+    public InvWarehouse validateWarehouse(Long tenantId, Long warehouseId) {
+        InvWarehouse warehouse = new InvWarehouse();
+        warehouse.setTenantId(tenantId);
+        warehouse.setWarehouseId(warehouseId);
+        List<InvWarehouse> fetchedWarehouse = invWarehouseRepository.select(warehouse);
+        if (fetchedWarehouse.isEmpty()) {
+            throw new CommonException("Warehouse does not exist for tenantId: " + tenantId + " and warehouseId: " + warehouseId);
+        }
+        return fetchedWarehouse.get(0);
     }
 }
 
