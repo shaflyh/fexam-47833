@@ -129,9 +129,10 @@ public class InvCountHeaderController extends BaseController {
     @ApiOperation(value = "Report Dataset Order")
     @Permission(level = ResourceLevel.ORGANIZATION)
     @ProcessCacheValue
-    @PostMapping("/order-report-dataset")
+    @ProcessLovValue(targetField = BaseConstants.FIELD_BODY)
+    @GetMapping("/order-report-dataset")
     public ResponseEntity<List<InvCountHeaderDTO>> countingOrderReportDs(@PathVariable Long organizationId,
-                                                                         @RequestBody InvCountHeader invCountHeader) {
+                                                                         InvCountHeaderDTO invCountHeader) {
         return Results.success(invCountHeaderService.countingOrderReportDs(invCountHeader));
     }
 

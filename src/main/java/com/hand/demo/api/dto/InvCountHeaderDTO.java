@@ -6,7 +6,6 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hzero.core.cache.Cacheable;
 
-import javax.persistence.Transient;
 import java.util.List;
 
 /**
@@ -23,8 +22,13 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
     @ApiModelProperty(value = "Status")
     private String status;
 
-    @Transient
     private String countStatusMeaning;
+
+    private String countDimensionMeaning;
+
+    private String countModeMeaning;
+
+    private String countTypeMeaning;
 
     private List<InvCountLineDTO> countOrderLineList;
 
@@ -37,11 +41,22 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
 
     private List<BatchDTO> snapshotBatchList;
 
-    private Boolean isWMSwarehouse;
+    private Boolean isWMSWarehouse;
 
     // For data permission rule
     private boolean tenantAdminFlag;
 
     // For countSyncWms
     private String employeeNumber;
+
+    // Additional field for reporting
+    private String departmentName;
+
+    private String wareHouseCode;
+
+    private UserDTO creator;
+
+    private String countingDifferences;
+
+    private List<String> approvalHistory;
 }

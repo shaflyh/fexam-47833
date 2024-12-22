@@ -30,5 +30,6 @@ public interface IamDepartmentService {
      */
     void saveData(List<IamDepartment> iamDepartments);
 
+    String getDepartmentName(Long departmentId);
 }
 

@@ -20,8 +20,13 @@ import java.util.stream.Collectors;
  */
 @Service
 public class InvMaterialServiceImpl implements InvMaterialService {
+
+    private final InvMaterialRepository invMaterialRepository;
+
     @Autowired
-    private InvMaterialRepository invMaterialRepository;
+    public InvMaterialServiceImpl(InvMaterialRepository invMaterialRepository) {
+        this.invMaterialRepository = invMaterialRepository;
+    }
 
     @Override
     public Page<InvMaterial> selectList(PageRequest pageRequest, InvMaterial invMaterial) {
@@ -36,6 +41,11 @@ public class InvMaterialServiceImpl implements InvMaterialService {
                 invMaterials.stream().filter(line -> line.getMaterialId() != null).collect(Collectors.toList());
         invMaterialRepository.batchInsertSelective(insertList);
         invMaterialRepository.batchUpdateByPrimaryKeySelective(updateList);
+    }
+
+    @Override
+    public InvMaterial selectById(Long materialId) {
+        return invMaterialRepository.selectByPrimaryKey(materialId);
     }
 }
 

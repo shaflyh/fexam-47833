@@ -74,7 +74,7 @@ public interface InvCountHeaderService {
      *
      * @param invCountHeader invCountHeader
      */
-    List<InvCountHeaderDTO> countingOrderReportDs(InvCountHeader invCountHeader);
+    List<InvCountHeaderDTO> countingOrderReportDs(InvCountHeaderDTO invCountHeader);
 
 }
 

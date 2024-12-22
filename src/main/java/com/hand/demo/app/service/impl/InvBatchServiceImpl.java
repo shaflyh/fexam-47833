@@ -20,8 +20,12 @@ import java.util.stream.Collectors;
  */
 @Service
 public class InvBatchServiceImpl implements InvBatchService {
+    private final InvBatchRepository invBatchRepository;
+
     @Autowired
-    private InvBatchRepository invBatchRepository;
+    public InvBatchServiceImpl(InvBatchRepository invBatchRepository) {
+        this.invBatchRepository = invBatchRepository;
+    }
 
     @Override
     public Page<InvBatch> selectList(PageRequest pageRequest, InvBatch invBatch) {
@@ -36,6 +40,11 @@ public class InvBatchServiceImpl implements InvBatchService {
                 invBatchs.stream().filter(line -> line.getBatchId() != null).collect(Collectors.toList());
         invBatchRepository.batchInsertSelective(insertList);
         invBatchRepository.batchUpdateByPrimaryKeySelective(updateList);
+    }
+
+    @Override
+    public InvBatch selectById(Long batchId) {
+        return invBatchRepository.selectByPrimaryKey(batchId);
     }
 }
 

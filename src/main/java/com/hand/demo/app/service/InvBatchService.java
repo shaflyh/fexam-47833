@@ -30,5 +30,6 @@ public interface InvBatchService {
      */
     void saveData(List<InvBatch> invBatchs);
 
+    InvBatch selectById(Long batchId);
 }
 

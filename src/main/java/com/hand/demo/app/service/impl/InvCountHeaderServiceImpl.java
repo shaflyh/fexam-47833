@@ -3,9 +3,7 @@ package com.hand.demo.app.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hand.demo.api.dto.*;
-import com.hand.demo.app.service.InvCountExtraService;
-import com.hand.demo.app.service.InvCountLineService;
-import com.hand.demo.app.service.InvWarehouseService;
+import com.hand.demo.app.service.*;
 import com.hand.demo.domain.entity.*;
 import com.hand.demo.domain.repository.*;
 import com.hand.demo.infra.constant.CodeRuleConst;
@@ -15,14 +13,12 @@ import io.choerodon.core.exception.CommonException;
 import io.choerodon.core.oauth.DetailsHelper;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
-import org.hzero.boot.apaas.common.userinfo.infra.feign.IamRemoteService;
 import org.hzero.boot.platform.code.builder.CodeRuleBuilder;
 import org.hzero.mybatis.domian.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import com.hand.demo.app.service.InvCountHeaderService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +41,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvWarehouseService warehouseService;
     private final InvCountLineService lineService;
     private final InvCountExtraService extraService;
+    private final IamDepartmentService departmentService;
     private final IamDepartmentRepository departmentRepository;
     // TODO: Make sure it's okay to call the repository directly. p.s: no, it's bad practice
     private final InvMaterialRepository materialRepository;
@@ -61,7 +58,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
     @Autowired
     public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository, InvWarehouseService warehouseService,
-                                     InvCountLineService lineService, InvCountExtraService extraService,
+                                     InvCountLineService lineService, InvCountExtraService extraService, IamDepartmentService departmentService,
                                      InvMaterialRepository materialRepository, InvBatchRepository batchRepository,
                                      IamCompanyRepository companyRepository, IamDepartmentRepository departmentRepository,
                                      InvWarehouseRepository warehouseRepository, InvStockRepository stockRepository,
@@ -70,6 +67,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         this.warehouseService = warehouseService;
         this.lineService = lineService;
         this.extraService = extraService;
+        this.departmentService = departmentService;
         this.materialRepository = materialRepository;
         this.batchRepository = batchRepository;
         this.companyRepository = companyRepository;
@@ -136,17 +134,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     @Override
     public InvCountHeaderDTO selectDetail(Long countHeaderId) {
         // Fetch the Invoice Header
-        InvCountHeader invCountHeader = invCountHeaderRepository.selectByPrimary(countHeaderId);
-        // If the record is not found, throw error
-        if (invCountHeader == null) {
-            // TODO: Add error const
-            throw new CommonException("Invoice with id " + countHeaderId + " not found");
-        }
-
-        // Convert to DTO
-        InvCountHeaderDTO invCountHeaderDTO = new InvCountHeaderDTO();
-        BeanUtils.copyProperties(invCountHeader, invCountHeaderDTO);
-
+        InvCountHeaderDTO invCountHeaderDTO = fetchHeaderById(countHeaderId);
         // Populate the header with related data
         populateHeaderDetails(invCountHeaderDTO);
 
@@ -156,7 +144,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     /**
      * 4. Counting order execution (orderExecution)
      */
-    // TODO: Test order execute
     @Override
     @Transactional
     public InvCountInfoDTO orderExecution(List<InvCountHeader> invCountHeaders) {
@@ -232,8 +219,20 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * 7. Counting order report dataset method (countingOrderReportDs)
      */
     @Override
-    public List<InvCountHeaderDTO> countingOrderReportDs(InvCountHeader invCountHeader) {
-        return Collections.emptyList();
+    public List<InvCountHeaderDTO> countingOrderReportDs(InvCountHeaderDTO invCountHeader) {
+        // Fetch the Invoice Header List
+        List<InvCountHeaderDTO> invCountHeaderDTOList = invCountHeaderRepository.selectList(invCountHeader);
+
+        // Assumption: The input is only one header id
+        InvCountHeaderDTO invCountHeaderDTO = invCountHeaderDTOList.get(0);
+
+        // Populate the header with related data from details
+        populateHeaderDetails(invCountHeaderDTO);
+
+        // Add additional data for report
+        populateHeaderDetailsReport(invCountHeaderDTO);
+
+        return invCountHeaderDTOList;
     }
 
     /**
@@ -598,8 +597,21 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// //////////////////////////////////////////////////////////////////////////////////////////////////////////
     // DETAIL
+    private InvCountHeaderDTO fetchHeaderById(Long countHeaderId) {
+        InvCountHeader invCountHeader = invCountHeaderRepository.selectByPrimary(countHeaderId);
+        // If the record is not found, throw error
+        if (invCountHeader == null) {
+            // TODO: Add error const
+            throw new CommonException("Invoice with id " + countHeaderId + " not found");
+        }
+        // Convert to DTO
+        InvCountHeaderDTO invCountHeaderDTO = new InvCountHeaderDTO();
+        BeanUtils.copyProperties(invCountHeader, invCountHeaderDTO);
+
+        return invCountHeaderDTO;
+    }
 
     /**
      * Populates the InvCountHeaderDTO with related user, material, batch, warehouse, and line details.
@@ -616,7 +628,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         header.setSnapshotBatchList(convertToBatchDTOs(header.getSnapshotBatchIds()));
 
         // Determine if the warehouse is a WMS warehouse
-        header.setIsWMSwarehouse(warehouseService.isWmsWarehouse(header.getWarehouseId()));
+        header.setIsWMSWarehouse(warehouseService.isWmsWarehouse(header.getWarehouseId()));
 
         // Retrieve and set invoice count lines
         header.setCountOrderLineList(lineService.selectListByHeaderId(header.getCountHeaderId()));
@@ -1051,6 +1063,35 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                     fetchedLine.setUnitDiffQty(unitDiffQty);
                     // Update the remark only if it's provided in the input
                     fetchedLine.setRemark(inputLine.getRemark() != null ? inputLine.getRemark() : fetchedLine.getRemark());
+                }
+            }
+        }
+    }
+
+    /**
+     * Populates the InvCountHeaderDTO with required report fields.
+     *
+     * @param header the InvCountHeaderDTO to populate
+     */
+    private void populateHeaderDetailsReport(InvCountHeaderDTO header) {
+        // Add additional field for reporting
+        // Creator name and tenant
+        UserDTO userDTO = new UserDTO();
+        userDTO.setUserId(header.getCreatedBy());
+
+        // Department name and warehouse code
+        String departmentName = departmentService.getDepartmentName(header.getDepartmentId());
+        String warehouseCode = warehouseService.getWarehouseCode(header.getWarehouseId());
+
+        header.setDepartmentName(departmentName);
+        header.setWareHouseCode(warehouseCode);
+        header.setCreator(userDTO);
+
+        // Set creator for the invoice line
+        for (InvCountLineDTO line : header.getCountOrderLineList()) {
+            for (UserDTO user : header.getCounterList()) {
+                if (line.getCreatedBy().equals(user.getUserId())) {
+                    line.setCounter(user);
                 }
             }
         }

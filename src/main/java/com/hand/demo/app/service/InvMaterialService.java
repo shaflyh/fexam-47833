@@ -30,5 +30,6 @@ public interface InvMaterialService {
      */
     void saveData(List<InvMaterial> invMaterials);
 
+    InvMaterial selectById(Long materialId);
 }
 

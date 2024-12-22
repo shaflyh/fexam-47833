@@ -1,5 +1,6 @@
 package com.hand.demo.app.service.impl;
 
+import com.hand.demo.domain.repository.InvCountLineRepository;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
@@ -20,8 +21,13 @@ import java.util.stream.Collectors;
  */
 @Service
 public class IamDepartmentServiceImpl implements IamDepartmentService {
+
+    private final IamDepartmentRepository iamDepartmentRepository;
+
     @Autowired
-    private IamDepartmentRepository iamDepartmentRepository;
+    public IamDepartmentServiceImpl(IamDepartmentRepository iamDepartmentRepository) {
+        this.iamDepartmentRepository = iamDepartmentRepository;
+    }
 
     @Override
     public Page<IamDepartment> selectList(PageRequest pageRequest, IamDepartment iamDepartment) {
@@ -36,6 +42,12 @@ public class IamDepartmentServiceImpl implements IamDepartmentService {
                 iamDepartments.stream().filter(line -> line.getDepartmentId() != null).collect(Collectors.toList());
         iamDepartmentRepository.batchInsertSelective(insertList);
         iamDepartmentRepository.batchUpdateByPrimaryKeySelective(updateList);
+    }
+
+    @Override
+    public String getDepartmentName(Long departmentId) {
+        IamDepartment department = iamDepartmentRepository.selectByPrimary(departmentId);
+        return department.getDepartmentName();
     }
 }
 

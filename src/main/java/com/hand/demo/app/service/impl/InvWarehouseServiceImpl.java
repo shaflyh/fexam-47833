@@ -21,8 +21,12 @@ import java.util.stream.Collectors;
  */
 @Service
 public class InvWarehouseServiceImpl implements InvWarehouseService {
+    private final InvWarehouseRepository invWarehouseRepository;
+
     @Autowired
-    private InvWarehouseRepository invWarehouseRepository;
+    public InvWarehouseServiceImpl(InvWarehouseRepository invWarehouseRepository) {
+        this.invWarehouseRepository = invWarehouseRepository;
+    }
 
     @Override
     public Page<InvWarehouse> selectList(PageRequest pageRequest, InvWarehouse invWarehouse) {
@@ -55,6 +59,12 @@ public class InvWarehouseServiceImpl implements InvWarehouseService {
             throw new CommonException("Warehouse does not exist for tenantId: " + tenantId + " and warehouseId: " + warehouseId);
         }
         return fetchedWarehouse.get(0);
+    }
+
+    @Override
+    public String getWarehouseCode(Long warehouseId) {
+        InvWarehouse warehouse = invWarehouseRepository.selectByPrimaryKey(warehouseId);
+        return warehouse.getWarehouseCode();
     }
 }
 

@@ -45,5 +45,7 @@ public interface InvWarehouseService {
      * @return The validated InvWarehouse object.
      */
      InvWarehouse validateWarehouse(Long tenantId, Long warehouseId);
+
+     String getWarehouseCode(Long warehouseId);
 }
 

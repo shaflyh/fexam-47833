@@ -1,6 +1,10 @@
 package com.hand.demo.app.service.impl;
 
 import com.hand.demo.api.dto.InvCountLineDTO;
+import com.hand.demo.app.service.InvBatchService;
+import com.hand.demo.app.service.InvMaterialService;
+import com.hand.demo.domain.entity.InvBatch;
+import com.hand.demo.domain.entity.InvMaterial;
 import com.hand.demo.infra.util.Utils;
 import io.choerodon.core.domain.Page;
 import io.choerodon.core.exception.CommonException;
@@ -29,11 +33,16 @@ import java.util.stream.Collectors;
 public class InvCountLineServiceImpl implements InvCountLineService {
 
     private final InvCountLineRepository invCountLineRepository;
+    private final InvMaterialService materialService;
+    private final InvBatchService batchService;
     private final Utils utils;
 
     @Autowired
-    public InvCountLineServiceImpl(InvCountLineRepository invCountLineRepository, Utils utils) {
+    public InvCountLineServiceImpl(InvCountLineRepository invCountLineRepository, InvMaterialService materialService,
+                                   InvBatchService batchService, Utils utils) {
         this.invCountLineRepository = invCountLineRepository;
+        this.materialService = materialService;
+        this.batchService = batchService;
         this.utils = utils;
     }
 
@@ -66,13 +75,20 @@ public class InvCountLineServiceImpl implements InvCountLineService {
         condition.createCriteria().andEqualTo("countHeaderId", headerId);
         // Fetch the filtered data
         List<InvCountLine> invCountLines = invCountLineRepository.selectByCondition(condition);
-        // return the DTOs
-        List<InvCountLineDTO> invCountLineDTOS = new ArrayList<>();
-        for (InvCountLine invCountLine : invCountLines) {
-            InvCountLineDTO invCountLineDTO = new InvCountLineDTO();
-            BeanUtils.copyProperties(invCountLine, invCountLineDTO);
-            invCountLineDTOS.add(invCountLineDTO);
-        }
+        // convert to the DTOs
+        List<InvCountLineDTO> invCountLineDTOS = convertLinesToDTOList(invCountLines);
+
+        // Add the required field for reporting
+        // TODO: prevent query in a loop
+        invCountLineDTOS.forEach(line -> {
+            InvMaterial material = materialService.selectById(line.getMaterialId());
+            InvBatch batch = batchService.selectById(line.getBatchId());
+
+            line.setItemCode(material.getMaterialCode());
+            line.setItemName(material.getMaterialName());
+            line.setBatchCode(batch.getBatchCode());
+        });
+
         return invCountLineDTOS;
     }
 
@@ -86,6 +102,14 @@ public class InvCountLineServiceImpl implements InvCountLineService {
 
         // Fetch the existing lines from the repository using the comma-separated IDs
         return invCountLineRepository.selectByIds(idString);
+    }
+
+    private List<InvCountLineDTO> convertLinesToDTOList(List<InvCountLine> lineList) {
+        return lineList.stream().map(line -> {
+            InvCountLineDTO dto = new InvCountLineDTO();
+            BeanUtils.copyProperties(line, dto); // Copy properties from entity to DTO
+            return dto;
+        }).collect(Collectors.toList());
     }
 }
 
