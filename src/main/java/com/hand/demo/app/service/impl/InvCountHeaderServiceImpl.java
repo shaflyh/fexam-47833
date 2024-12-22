@@ -83,7 +83,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * 1. Counting order save (orderSave)
      */
     @Override
-    public InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders) {
+    public InvCountInfoDTO orderSave(List<InvCountHeaderDTO> invCountHeaders) {
         // 1. Counting order save verification method
         InvCountInfoDTO countInfo = manualSaveCheck(invCountHeaders);
 
@@ -102,12 +102,12 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * 2. Counting order remove (orderRemove)
      */
     @Override
-    public InvCountInfoDTO orderRemove(List<InvCountHeader> invCountHeaders) {
+    public InvCountInfoDTO orderRemove(List<InvCountHeaderDTO> invCountHeaders) {
         InvCountInfoDTO checkResult = manualRemoveCheck(invCountHeaders);
         // Check if there are errors
         if (checkResult.getErrorList().isEmpty()) {
             // Delete Invoice Headers if all validation succeeds
-            manualRemove(invCountHeaders);
+            invCountHeaderRepository.batchDeleteByPrimaryKey(new ArrayList<>(invCountHeaders));
             checkResult.setTotalErrorMsg("All validation successful. Orders deleted.");
         }
         return checkResult;
@@ -146,7 +146,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      */
     @Override
     @Transactional
-    public InvCountInfoDTO orderExecution(List<InvCountHeader> invCountHeaders) {
+    public InvCountInfoDTO orderExecution(List<InvCountHeaderDTO> invCountHeaders) {
         // 1. Counting order save verification method
         InvCountInfoDTO countInfo = manualSaveCheck(invCountHeaders);
 
@@ -181,7 +181,11 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * 5. Submit counting results for approval (orderSubmit)
      */
     @Override
-    public InvCountInfoDTO orderSubmit(List<InvCountHeader> invCountHeaders) {
+    public InvCountInfoDTO orderSubmit(List<InvCountHeaderDTO> invCountHeaders) {
+        orderSave(invCountHeaders);
+
+        submitCheck(invCountHeaders);
+
         return null;
     }
 
@@ -251,18 +255,18 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @param invCountHeaders List of InvCountHeader entities to check.
      * @return InvCountInfoDTO containing validation results.
      */
-    private InvCountInfoDTO manualSaveCheck(List<InvCountHeader> invCountHeaders) {
+    private InvCountInfoDTO manualSaveCheck(List<InvCountHeaderDTO> invCountHeaders) {
         // Initialize the response DTO
         InvCountInfoDTO checkResult = new InvCountInfoDTO();
         List<InvCountHeaderDTO> errorList = new ArrayList<>();
         List<InvCountHeaderDTO> successList = new ArrayList<>();
 
         // Separate headers into inserts and updates
-        List<InvCountHeader> insertList = filterHeaders(invCountHeaders, true);
-        List<InvCountHeader> updateList = filterHeaders(invCountHeaders, false);
+        List<InvCountHeaderDTO> insertList = filterHeaders(invCountHeaders, true);
+        List<InvCountHeaderDTO> updateList = filterHeaders(invCountHeaders, false);
 
         // Process all insert operations (skip the validation, directly put into the success list)
-        successList.addAll(convertToDTOList(insertList));
+        successList.addAll(insertList);
 
         // Process the validation of all update invoice if there are any
         if (!updateList.isEmpty()) {
@@ -308,7 +312,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         return checkResult;
     }
 
-    private InvCountInfoDTO manualRemoveCheck(List<InvCountHeader> invCountHeaders) {
+    private InvCountInfoDTO manualRemoveCheck(List<InvCountHeaderDTO> invCountHeaders) {
         // Initialize the response DTO
         InvCountInfoDTO invCountInfoDTO = new InvCountInfoDTO();
         List<InvCountHeaderDTO> errorList = new ArrayList<>();
@@ -344,9 +348,9 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      *
      * @param invCountHeaders List of InvCountHeader entities to save.
      */
-    private List<InvCountHeaderDTO> manualSave(List<InvCountHeader> invCountHeaders) {
-        List<InvCountHeader> insertList = filterHeaders(invCountHeaders, true);
-        List<InvCountHeader> updateList = filterHeaders(invCountHeaders, false);
+    private List<InvCountHeaderDTO> manualSave(List<InvCountHeaderDTO> invCountHeaders) {
+        List<InvCountHeaderDTO> insertList = filterHeaders(invCountHeaders, true);
+        List<InvCountHeaderDTO> updateList = filterHeaders(invCountHeaders, false);
 
         // Generate count numbers for new headers with Code Rule Builder
         for (InvCountHeader countHeader : insertList) {
@@ -356,8 +360,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             countHeader.setCountNumber(invCountNumber);
         }
         logger.info("Save and update InvCountHeaders");
-        invCountHeaderRepository.batchInsertSelective(insertList);
-        invCountHeaderRepository.batchUpdateByPrimaryKeySelective(updateList);
+        invCountHeaderRepository.batchInsertSelective(new ArrayList<>(insertList));
+        invCountHeaderRepository.batchUpdateByPrimaryKeySelective(new ArrayList<>(updateList));
 
         // Fetch again the data and return the value
         Map<Long, InvCountHeader> latestHeadersMap = fetchExistingHeaders(invCountHeaders);
@@ -367,22 +371,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     * Performs the actual remove operation after validation.
-     *
-     * @param invCountHeaders List of InvCountHeader entities to remove.
-     */
-    private void manualRemove(List<InvCountHeader> invCountHeaders) {
-        invCountHeaderRepository.batchDeleteByPrimaryKey(invCountHeaders);
-    }
-
-    /**
      * Filters headers based on whether they are new (insert) or existing (update).
      *
      * @param headers  The list of headers to filter.
      * @param isInsert If true, filters for inserts; else for updates.
      * @return Filtered list of InvCountHeaders.
      */
-    private List<InvCountHeader> filterHeaders(List<InvCountHeader> headers, boolean isInsert) {
+    private List<InvCountHeaderDTO> filterHeaders(List<InvCountHeaderDTO> headers, boolean isInsert) {
         if (isInsert) {
             return headers.stream().filter(header -> header.getCountHeaderId() == null).collect(Collectors.toList());
         } else {
@@ -464,13 +459,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * Fetches existing InvCountHeaders from the repository based on the headers to be updated
      * and maps them by their CountHeaderId for efficient lookup.
      *
-     * @param updateList List of InvCountHeader entities that need to be updated.
+     * @param invCountHeaders List of InvCountHeader entities that need to be updated.
      * @return Map of CountHeaderId to InvCountHeader.
      */
-    private Map<Long, InvCountHeader> fetchExistingHeaders(List<InvCountHeader> updateList) {
+    private Map<Long, InvCountHeader> fetchExistingHeaders(List<InvCountHeaderDTO> invCountHeaders) {
         // TODO: Check if id may not exist.
         // Extract the set of IDs from the update list
-        Set<Long> headerIds = updateList.stream().map(InvCountHeader::getCountHeaderId).collect(Collectors.toSet());
+        Set<Long> headerIds = invCountHeaders.stream().map(InvCountHeader::getCountHeaderId).collect(Collectors.toSet());
 
         // Convert the set of IDs to a comma-separated string for the repository query
         String idString = headerIds.stream().map(String::valueOf).collect(Collectors.joining(","));
@@ -623,9 +618,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         header.setCounterList(convertIdsToUserDTOs(parseIds(header.getCounterIds())));
         header.setSupervisorList(convertIdsToUserDTOs(parseIds(header.getSupervisorIds())));
 
-        // Populate snapshot materials and batches
-        header.setSnapshotMaterialList(convertToMaterialDTOs(header.getSnapshotMaterialIds()));
-        header.setSnapshotBatchList(convertToBatchDTOs(header.getSnapshotBatchIds()));
+        // Populate snapshot materials and batches (it might be null because it's not necessary for header creation)
+        if (header.getSnapshotMaterialIds() != null && !header.getSnapshotMaterialIds().isEmpty()) {
+            header.setSnapshotMaterialList(convertToMaterialDTOs(header.getSnapshotMaterialIds()));
+        }
+        if (header.getSnapshotBatchIds() != null && !header.getSnapshotBatchIds().isEmpty()) {
+            header.setSnapshotBatchList(convertToBatchDTOs(header.getSnapshotBatchIds()));
+        }
 
         // Determine if the warehouse is a WMS warehouse
         header.setIsWMSWarehouse(warehouseService.isWmsWarehouse(header.getWarehouseId()));
@@ -700,7 +699,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
 
-    private InvCountInfoDTO executeCheck(List<InvCountHeader> invCountHeaders) {
+    private InvCountInfoDTO executeCheck(List<InvCountHeaderDTO> invCountHeaders) {
         // Initialize the response DTO
         InvCountInfoDTO checkResult = new InvCountInfoDTO();
         List<InvCountHeaderDTO> errorList = new ArrayList<>();
@@ -828,7 +827,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @param invCountHeaders List of InvCountHeader entities to process.
      * @return List of InvCountHeaderDTOs containing updated headers and associated lines.
      */
-    private List<InvCountHeaderDTO> execute(List<InvCountHeader> invCountHeaders) {
+    private List<InvCountHeaderDTO> execute(List<InvCountHeaderDTO> invCountHeaders) {
 
         // Fetch existing headers
         Map<Long, InvCountHeader> existingHeadersMap = fetchExistingHeaders(invCountHeaders);
@@ -1095,6 +1094,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                 }
             }
         }
+    }
+
+    private InvCountInfoDTO submitCheck(List<InvCountHeaderDTO> invCountHeaderDTOS) {
+        InvCountInfoDTO result = new InvCountInfoDTO();
+
+
+        return result;
     }
 }
 

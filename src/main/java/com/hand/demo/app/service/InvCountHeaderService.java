@@ -22,14 +22,14 @@ public interface InvCountHeaderService {
      *
      * @param invCountHeaders invCountHeaders
      */
-    InvCountInfoDTO orderSave(List<InvCountHeader> invCountHeaders);
+    InvCountInfoDTO orderSave(List<InvCountHeaderDTO> invCountHeaders);
 
     /**
      * 2. Counting order remove (orderRemove)
      *
      * @param invCountHeaders invCountHeaders
      */
-    InvCountInfoDTO orderRemove(List<InvCountHeader> invCountHeaders);
+    InvCountInfoDTO orderRemove(List<InvCountHeaderDTO> invCountHeaders);
 
     /**
      * 3.a. Counting order query (list)
@@ -53,14 +53,14 @@ public interface InvCountHeaderService {
      *
      * @param invCountHeaders invCountHeaders
      */
-    InvCountInfoDTO orderExecution(List<InvCountHeader> invCountHeaders);
+    InvCountInfoDTO orderExecution(List<InvCountHeaderDTO> invCountHeaders);
 
     /**
      * 5. Submit counting results for approval (orderSubmit)
      *
      * @param invCountHeaders invCountHeaders
      */
-    InvCountInfoDTO orderSubmit(List<InvCountHeader> invCountHeaders);
+    InvCountInfoDTO orderSubmit(List<InvCountHeaderDTO> invCountHeaders);
 
     /**
      * 6. Counting result synchronous (countResultSync)

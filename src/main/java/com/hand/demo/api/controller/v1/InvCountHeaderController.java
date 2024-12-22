@@ -49,7 +49,7 @@ public class InvCountHeaderController extends BaseController {
     @ProcessCacheValue
     @PostMapping("/order-save")
     public ResponseEntity<InvCountInfoDTO> orderSave(@PathVariable Long organizationId,
-                                                     @RequestBody List<InvCountHeader> invCountHeaders) {
+                                                     @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
         validList(invCountHeaders, InvCountHeader.Save.class);
         SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
         return Results.success(invCountHeaderService.orderSave(invCountHeaders));
@@ -60,7 +60,7 @@ public class InvCountHeaderController extends BaseController {
     @Permission(level = ResourceLevel.ORGANIZATION)
     @DeleteMapping
     public ResponseEntity<?> orderRemove(@PathVariable Long organizationId,
-                                         @RequestBody List<InvCountHeader> invCountHeaders) {
+                                         @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
         SecurityTokenHelper.validToken(invCountHeaders);
         return Results.success(invCountHeaderService.orderRemove(invCountHeaders));
     }
@@ -98,7 +98,7 @@ public class InvCountHeaderController extends BaseController {
     @ProcessCacheValue
     @PostMapping("/order-execution")
     public ResponseEntity<InvCountInfoDTO> orderExecution(@PathVariable Long organizationId,
-                                                          @RequestBody List<InvCountHeader> invCountHeaders) {
+                                                          @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
         validList(invCountHeaders, InvCountHeader.Execute.class);
         SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
         return Results.success(invCountHeaderService.orderExecution(invCountHeaders));
@@ -110,7 +110,7 @@ public class InvCountHeaderController extends BaseController {
     @ProcessCacheValue
     @PostMapping("/order-submit")
     public ResponseEntity<InvCountInfoDTO> orderSubmit(@PathVariable Long organizationId,
-                                                       @RequestBody List<InvCountHeader> invCountHeaders) {
+                                                       @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
         return Results.success(invCountHeaderService.orderSubmit(invCountHeaders));
     }
 

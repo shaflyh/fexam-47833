@@ -81,12 +81,15 @@ public class InvCountLineServiceImpl implements InvCountLineService {
         // Add the required field for reporting
         // TODO: prevent query in a loop
         invCountLineDTOS.forEach(line -> {
-            InvMaterial material = materialService.selectById(line.getMaterialId());
-            InvBatch batch = batchService.selectById(line.getBatchId());
-
-            line.setItemCode(material.getMaterialCode());
-            line.setItemName(material.getMaterialName());
-            line.setBatchCode(batch.getBatchCode());
+            if (line.getMaterialId() != null) {
+                InvMaterial material = materialService.selectById(line.getMaterialId());
+                line.setItemCode(material.getMaterialCode());
+                line.setItemName(material.getMaterialName());
+            }
+            if (line.getBatchId() != null) {
+                InvBatch batch = batchService.selectById(line.getBatchId());
+                line.setBatchCode(batch.getBatchCode());
+            }
         });
 
         return invCountLineDTOS;
