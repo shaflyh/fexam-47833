@@ -33,5 +33,13 @@ public interface InvCountLineService {
 
     List<InvCountLineDTO> selectListByHeaderId(Long headerId);
 
+
+    /**
+     * Fetches existing InvCountLines from the repository based on the lines input
+     *
+     * @param lineList List of InvCountLine entities that need to be updated.
+     * @return List of CountLineId to InvCountLine.
+     */
+    List<InvCountLine> fetchExistingLines(List<InvCountLine> lineList);
 }
 

@@ -20,6 +20,9 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
     @ApiModelProperty(value = "Error Message")
     private String errorMsg;
 
+    @ApiModelProperty(value = "Status")
+    private String status;
+
     @Transient
     private String countStatusMeaning;
 

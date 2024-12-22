@@ -67,7 +67,7 @@ public interface InvCountHeaderService {
      *
      * @param invCountHeader invCountHeader
      */
-    InvCountHeaderDTO countResultSync(InvCountHeader invCountHeader);
+    InvCountHeaderDTO countResultSync(InvCountHeaderDTO invCountHeader);
 
     /**
      * 7. Counting order report dataset method (countingOrderReportDs)
