@@ -14,7 +14,8 @@ import io.choerodon.core.oauth.DetailsHelper;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.hzero.boot.platform.code.builder.CodeRuleBuilder;
-import org.hzero.mybatis.domian.Condition;
+import org.hzero.boot.platform.profile.ProfileClient;
+import org.hzero.boot.workflow.WorkflowClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
@@ -44,6 +45,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvStockService stockService;
     private final IamDepartmentService departmentService;
     private final IamDepartmentRepository departmentRepository;
+    private final ProfileClient profileClient;
+    private final WorkflowClient workflowClient;
     // TODO: Make sure it's okay to call the repository directly. p.s: no, it's bad practice
     private final InvMaterialRepository materialRepository;
     private final InvBatchRepository batchRepository;
@@ -54,22 +57,25 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final Utils utils;
     private static final Logger logger = LoggerFactory.getLogger(InvCountHeaderServiceImpl.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private final WorkflowService workflowService;
 
 
     @Autowired
     public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository, InvWarehouseService warehouseService,
                                      InvCountLineService lineService, InvCountExtraService extraService, InvStockService stockService,
-                                     IamDepartmentService departmentService,
+                                     IamDepartmentService departmentService, ProfileClient profileClient, WorkflowClient workflowClient,
                                      InvMaterialRepository materialRepository, InvBatchRepository batchRepository,
                                      IamCompanyRepository companyRepository, IamDepartmentRepository departmentRepository,
                                      InvWarehouseRepository warehouseRepository,
-                                     InvCountLineRepository lineRepository, CodeRuleBuilder codeRuleBuilder, Utils utils) {
+                                     InvCountLineRepository lineRepository, CodeRuleBuilder codeRuleBuilder, Utils utils, WorkflowService workflowService) {
         this.invCountHeaderRepository = invCountHeaderRepository;
         this.warehouseService = warehouseService;
         this.lineService = lineService;
         this.extraService = extraService;
         this.stockService = stockService;
         this.departmentService = departmentService;
+        this.profileClient = profileClient;
+        this.workflowClient = workflowClient;
         this.materialRepository = materialRepository;
         this.batchRepository = batchRepository;
         this.companyRepository = companyRepository;
@@ -78,6 +84,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         this.lineRepository = lineRepository;
         this.codeRuleBuilder = codeRuleBuilder;
         this.utils = utils;
+        this.workflowService = workflowService;
     }
 
     /**
@@ -171,13 +178,27 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     * 5. Submit counting results for approval (orderSubmit)
+     * API 5: Submit counting results for approval (orderSubmit).
+     * <p>
+     * This method processes the submission of inventory counting orders for approval.
+     * Steps:
+     * 1. Save the orders using the orderSave method to ensure data integrity.
+     * 2. Validate the orders with the submitCheck method to ensure they meet the submission requirements.
+     * 3. Process valid orders with the submit method, which either starts a workflow or updates the status.
      */
     @Override
     public InvCountInfoDTO orderSubmit(List<InvCountHeaderDTO> invCountHeaders) {
+        // 1. Save the headers to ensure they are valid and up-to-date
         orderSave(invCountHeaders);
 
+        // 2. Perform validation checks on the headers
         InvCountInfoDTO checkResult = submitCheck(invCountHeaders);
+
+        // 3. Submit headers that passed validation
+        List<InvCountHeaderDTO> submitResults = submit(checkResult.getSuccessList());
+
+        // Update the result with successfully submitted headers
+        checkResult.setSuccessList(submitResults);
 
         return checkResult;
     }
@@ -230,6 +251,11 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         populateHeaderDetailsReport(invCountHeaderDTO);
 
         return invCountHeaderDTOList;
+    }
+
+    @Override
+    public InvCountHeaderDTO workflowCallback(Long organizationId, WorkflowEventDTO workflowEventDTO) {
+        return processCallback(organizationId, workflowEventDTO);
     }
 
     /**
@@ -740,8 +766,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             }
         }
 
+        // Update the count time string
+        // TODO: Should we move this to save method(?)
+        List<InvCountHeader> updatedHeaders = invCountHeaderRepository.batchUpdateOptional(
+                new ArrayList<>(successList), InvCountHeader.FIELD_COUNT_TIME_STR);
+
         // Populate the response DTO
-        populateInvCountInfoDTO(checkResult, errorList, successList);
+        populateInvCountInfoDTO(checkResult, errorList, convertToDTOList(updatedHeaders));
 
         return checkResult;
     }
@@ -925,32 +956,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }
 
         return headerDTOS;
-    }
-
-    // Create Invoice Line from stock data
-    private InvCountLine generateInvCountLine(InvCountHeader header, InvStock stock, int index) {
-        InvCountLine line = new InvCountLine();
-        line.setTenantId(header.getTenantId());
-        line.setCountHeaderId(header.getCountHeaderId());
-        line.setLineNumber(index);
-        line.setWarehouseId(header.getWarehouseId());
-        line.setCounterIds(header.getCounterIds());
-        line.setSnapshotUnitQty(stock.getUnitQuantity());
-
-        // If the counting dimension = SKU, summarize by material
-        // TODO: Make sure if this implementation is correct (it feels wrong)
-        if (header.getCountDimension().equals("SKU")) {
-            // TODO: Check material code column is not exist in the table.
-            line.setMaterialId(stock.getMaterialId());
-            line.setUnitCode(stock.getUnitCode());
-        }
-        // If the counting dimension = LOT, summarize by material + batch
-        if (header.getCountDimension().equals("LOT")) {
-            line.setMaterialId(stock.getMaterialId());
-            line.setUnitCode(stock.getUnitCode());
-            line.setBatchId(stock.getBatchId());
-        }
-        return line;
     }
 
     /**
@@ -1141,19 +1146,21 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }
     }
 
+    /**
+     * Perform validation checks for inventory counting orders before submission.
+     */
     private InvCountInfoDTO submitCheck(List<InvCountHeaderDTO> invCountHeaderDTOS) {
-        // Initialize the response DTO
+        // Initialize the response object to track success and error results
         InvCountInfoDTO checkResult = new InvCountInfoDTO();
         List<InvCountHeaderDTO> errorList = new ArrayList<>();
         List<InvCountHeaderDTO> successList = new ArrayList<>();
 
-        // Requery the database based on the input document ID
+        // 1. Fetch the latest header data from the database
         List<InvCountHeaderDTO> fetchedHeader = fetchExistingHeaders(invCountHeaderDTOS);
 
-        // Process the validation
-        // Iterate over each header that needs to be validated
+        // 2. Validate each fetched header
         for (InvCountHeaderDTO header : fetchedHeader) {
-            // Validates submit operation
+            // Validate the order and get the validation error (if any)
             String validationError = validateSubmit(header);
             if (validationError != null) {
                 // If validation fails, set the error message and add to the error list
@@ -1164,12 +1171,9 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                 successList.add(header);
             }
         }
-
         // Populate the response DTO
         populateInvCountInfoDTO(checkResult, errorList, successList);
-
-        // Throw exception if the error list not empty
-        // TODO: Make sure again do we need to throw exception or not
+        // If there are validation errors, throw an exception with the details
         if (!errorList.isEmpty()) {
             throw new CommonException("Counting order submit failed: " + checkResult.getTotalErrorMsg());
         }
@@ -1228,6 +1232,99 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // All validations passed
         return null;
+    }
+
+    /**
+     * Submit inventory counting orders that passed validation.
+     * <p>
+     * This method either starts a workflow or directly updates the order status
+     * to "CONFIRMED" based on configuration.
+     *
+     * @param invCountHeaderDTOS List of InvCountHeaderDTOs to be submitted.
+     * @return List of successfully submitted InvCountHeaderDTOs.
+     */
+    private List<InvCountHeaderDTO> submit(List<InvCountHeaderDTO> invCountHeaderDTOS) {
+        for (InvCountHeaderDTO header : invCountHeaderDTOS) {
+            // Get tenant ID for the current operation
+            Long tenantId = utils.getUserVO().getTenantId();
+
+            // Fetch workflow configuration to determine the submission method
+            String workflowFlag = profileClient.getProfileValueByOptions(tenantId, null, null, "FEXAM33.INV.COUNTING.ISWORKFLO");
+
+            if (workflowFlag.equals("1")) {
+                // If workflow is enabled, start the workflow process
+                logger.info("Starting workflow.");
+                workflowService.startWorkflow(tenantId, header);
+            } else {
+                // Otherwise, directly update the document status to "CONFIRMED"
+                header.setCountStatus("CONFIRMED");
+            }
+        }
+
+        // Batch update the document status in the database
+        List<InvCountHeader> result = invCountHeaderRepository.batchUpdateOptional(
+                new ArrayList<>(invCountHeaderDTOS), InvCountHeader.FIELD_COUNT_STATUS);
+
+        return convertToDTOList(result);
+    }
+
+    /**
+     * Processes a workflow callback event for an inventory counting order.
+     *
+     * @param organizationId   The organization ID associated with the workflow event.
+     * @param workflowEventDTO The workflow event data transfer object containing callback details.
+     * @return The updated inventory count header as a DTO.
+     */
+    private InvCountHeaderDTO processCallback(Long organizationId, WorkflowEventDTO workflowEventDTO) {
+        logger.info("Workflow callback processing started for BusinessKey: {}", workflowEventDTO.getBusinessKey());
+
+        // Validate input parameters
+        if (workflowEventDTO.getBusinessKey() == null) {
+            throw new CommonException("Invalid workflow event: BusinessKey cannot be null.");
+        }
+
+        // Retrieve the matching header record from the database
+        InvCountHeader existingHeader = invCountHeaderRepository.selectOne(new InvCountHeader() {{
+            setCountNumber(workflowEventDTO.getBusinessKey());
+            setTenantId(organizationId);
+        }});
+
+        if (existingHeader == null) {
+            // Throw exception if no matching record is found
+            throw new CommonException(String.format(
+                    "Workflow callback failed: No matching record found for BusinessKey '%s' in OrganizationId '%d'.",
+                    workflowEventDTO.getBusinessKey(), organizationId
+            ));
+        }
+
+        // Update the header based on the workflow event and save changes
+        InvCountHeader invCountHeader = updateHeaderWorkflow(workflowEventDTO, existingHeader);
+        invCountHeaderRepository.updateByPrimaryKeySelective(invCountHeader);
+
+        return convertToDTO(invCountHeader);
+    }
+
+    // Updates the inventory count header with details from the workflow event.
+    private InvCountHeader updateHeaderWorkflow(WorkflowEventDTO workflowEventDTO, InvCountHeader header) {
+        logger.info("Updating header for workflow event with BusinessKey: {}", workflowEventDTO.getBusinessKey());
+
+        // Validate workflow event fields
+        if (workflowEventDTO.getDocStatus() == null) {
+            throw new CommonException("Workflow event is missing document status.");
+        }
+
+        // Update header fields with workflow event details
+        header.setCountStatus(workflowEventDTO.getDocStatus());
+        header.setWorkflowId(workflowEventDTO.getWorkflowId());
+        header.setApprovedTime(workflowEventDTO.getApprovedTime());
+
+        /// Update supervisor to the current operator when the process starts
+        // TODO: Ensure this implementation is correct
+        String currentUserId = utils.getUserVO().getId().toString();
+        logger.info("Setting supervisor to current user: {}", currentUserId);
+        header.setSupervisorIds(currentUserId);
+
+        return header;
     }
 }
 

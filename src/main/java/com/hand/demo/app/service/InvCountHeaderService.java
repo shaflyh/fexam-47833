@@ -2,9 +2,12 @@ package com.hand.demo.app.service;
 
 import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvCountInfoDTO;
+import com.hand.demo.api.dto.WorkflowEventDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import com.hand.demo.domain.entity.InvCountHeader;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -76,5 +79,6 @@ public interface InvCountHeaderService {
      */
     List<InvCountHeaderDTO> countingOrderReportDs(InvCountHeaderDTO invCountHeader);
 
+    InvCountHeaderDTO workflowCallback(Long tenantId, WorkflowEventDTO workflowEventDTO);
 }
 

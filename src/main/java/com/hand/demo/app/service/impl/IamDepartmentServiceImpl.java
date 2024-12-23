@@ -49,5 +49,11 @@ public class IamDepartmentServiceImpl implements IamDepartmentService {
         IamDepartment department = iamDepartmentRepository.selectByPrimary(departmentId);
         return department.getDepartmentName();
     }
+
+    @Override
+    public String getDepartmentCode(Long departmentId) {
+        IamDepartment department = iamDepartmentRepository.selectByPrimary(departmentId);
+        return department.getDepartmentCode();
+    }
 }
 
