@@ -100,7 +100,7 @@ public class InvCountHeaderController extends BaseController {
     public ResponseEntity<InvCountInfoDTO> orderExecution(@PathVariable Long organizationId,
                                                           @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
         validList(invCountHeaders, InvCountHeader.Execute.class);
-        SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
+        // SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
         return Results.success(invCountHeaderService.orderExecution(invCountHeaders));
     }
 
@@ -133,6 +133,7 @@ public class InvCountHeaderController extends BaseController {
     @GetMapping("/order-report-dataset")
     public ResponseEntity<List<InvCountHeaderDTO>> countingOrderReportDs(@PathVariable Long organizationId,
                                                                          InvCountHeaderDTO invCountHeader) {
+        validObject(invCountHeader, InvCountHeader.Save.class);
         return Results.success(invCountHeaderService.countingOrderReportDs(invCountHeader));
     }
 
