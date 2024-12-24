@@ -62,9 +62,12 @@ public class InvWarehouseServiceImpl implements InvWarehouseService {
     }
 
     @Override
-    public String getWarehouseCode(Long warehouseId) {
-        InvWarehouse warehouse = invWarehouseRepository.selectByPrimaryKey(warehouseId);
-        return warehouse.getWarehouseCode();
+    public Long getIdByWarehouseCode(String warehouseCode) {
+        InvWarehouse warehouse = invWarehouseRepository.selectOne(new InvWarehouse().setWarehouseCode(warehouseCode));
+        if (warehouse == null) {
+            throw new CommonException("Warehouse not found for code: " + warehouseCode);
+        }
+        return warehouse.getWarehouseId();
     }
 }
 

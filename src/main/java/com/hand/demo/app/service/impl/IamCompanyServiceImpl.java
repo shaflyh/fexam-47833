@@ -1,6 +1,7 @@
 package com.hand.demo.app.service.impl;
 
 import io.choerodon.core.domain.Page;
+import io.choerodon.core.exception.CommonException;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,8 +21,13 @@ import java.util.stream.Collectors;
  */
 @Service
 public class IamCompanyServiceImpl implements IamCompanyService {
+
+    private final IamCompanyRepository iamCompanyRepository;
+
     @Autowired
-    private IamCompanyRepository iamCompanyRepository;
+    public IamCompanyServiceImpl(IamCompanyRepository iamCompanyRepository) {
+        this.iamCompanyRepository = iamCompanyRepository;
+    }
 
     @Override
     public Page<IamCompany> selectList(PageRequest pageRequest, IamCompany iamCompany) {
@@ -36,6 +42,15 @@ public class IamCompanyServiceImpl implements IamCompanyService {
                 iamCompanys.stream().filter(line -> line.getCompanyId() != null).collect(Collectors.toList());
         iamCompanyRepository.batchInsertSelective(insertList);
         iamCompanyRepository.batchUpdateByPrimaryKeySelective(updateList);
+    }
+
+    @Override
+    public Long getIdByCompanyCode(String companyCode) {
+        IamCompany company = iamCompanyRepository.selectOne(new IamCompany().setCompanyCode(companyCode));
+        if (company == null) {
+            throw new CommonException("Company not found for code: " + companyCode);
+        }
+        return company.getCompanyId();
     }
 }
 

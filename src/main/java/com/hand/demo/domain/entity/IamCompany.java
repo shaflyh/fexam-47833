@@ -12,11 +12,13 @@ import javax.persistence.Id;
 import javax.persistence.Table;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.experimental.Accessors;
 
 /**
  * (IamCompany)实体类
@@ -31,8 +33,9 @@ import lombok.Setter;
 @VersionAudit
 @ModifyAudit
 @JsonInclude(value = JsonInclude.Include.NON_NULL)
+@Accessors(chain = true)
 @Table(name = "fexam_iam_company")
-public class IamCompany extends AuditDomain {
+public class IamCompany extends AuditDomain implements Serializable {
     private static final long serialVersionUID = -88754053800916853L;
 
     public static final String FIELD_COMPANY_ID = "companyId";

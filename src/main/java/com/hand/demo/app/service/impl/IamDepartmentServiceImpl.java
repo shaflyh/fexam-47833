@@ -1,7 +1,7 @@
 package com.hand.demo.app.service.impl;
 
-import com.hand.demo.domain.repository.InvCountLineRepository;
 import io.choerodon.core.domain.Page;
+import io.choerodon.core.exception.CommonException;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +54,15 @@ public class IamDepartmentServiceImpl implements IamDepartmentService {
     public String getDepartmentCode(Long departmentId) {
         IamDepartment department = iamDepartmentRepository.selectByPrimary(departmentId);
         return department.getDepartmentCode();
+    }
+
+    @Override
+    public Long getIdByDepartmentCode(String departmentCode) {
+        IamDepartment department = iamDepartmentRepository.selectOne(new IamDepartment().setDepartmentCode(departmentCode));
+        if (department == null) {
+            throw new CommonException("Department not found for code: " + departmentCode);
+        }
+        return department.getDepartmentId();
     }
 }
 

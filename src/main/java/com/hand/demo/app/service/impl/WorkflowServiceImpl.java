@@ -9,13 +9,12 @@ import com.hand.demo.infra.util.Utils;
 import io.choerodon.core.exception.CommonException;
 import org.hzero.boot.workflow.WorkflowClient;
 import org.hzero.boot.workflow.dto.RunTaskHistory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class WorkflowServiceImpl implements WorkflowService {
@@ -25,6 +24,7 @@ public class WorkflowServiceImpl implements WorkflowService {
     private final Utils utils;
 
     private static final String FLOW_KEY = "INV_COUNT33_RESULT_SUBMIT";
+    private static final Logger logger = LoggerFactory.getLogger(WorkflowServiceImpl.class);
 
     @Autowired
     public WorkflowServiceImpl(IamDepartmentService departmentService, WorkflowClient workflowClient, Utils utils) {
@@ -44,7 +44,7 @@ public class WorkflowServiceImpl implements WorkflowService {
         String businessKey = header.getCountNumber(); // "INV-Counting-0-20241223-090"
         // TODO: Make sure for this parameter
         String dimension = "EMPLOYEE"; // "EMPLOYEE"
-        String starter = String.valueOf(utils.getUserVO().getId()); // "47833"
+        String starter = String.valueOf(utils.getUserVO().getRealName()); // "Shafly"
         Map<String, Object> variableMap = new HashMap<>();
 
         // Set the department code to determine workflow
@@ -60,8 +60,32 @@ public class WorkflowServiceImpl implements WorkflowService {
     }
 
     @Override
-    public List<RunTaskHistory> getApproveHistory(Long tenantId, String countNumber) {
-        return workflowClient.approveHistoryByFlowKey(tenantId, FLOW_KEY, countNumber);
+    public List<RunTaskHistory> getApproveHistory(Long tenantId, InvCountHeaderDTO headerDTO) {
+        List<RunTaskHistory> historyList;
+        try {
+            // This will throw exception if the document not yet have workflow started
+            historyList = workflowClient.approveHistoryByFlowKey(tenantId, FLOW_KEY, headerDTO.getCountNumber());
+
+            // Sort the history list by endDate in reverse order (latest first)
+            if (historyList != null) {
+                historyList.sort((h1, h2) -> {
+                    Date endDate1 = h1.getEndDate();
+                    Date endDate2 = h2.getEndDate();
+
+                    // Handle null endDate values (nulls last)
+                    if (endDate1 == null && endDate2 == null) return 0;
+                    if (endDate1 == null) return 1;
+                    if (endDate2 == null) return -1;
+
+                    // Compare dates in reverse order
+                    return endDate2.compareTo(endDate1);
+                });
+            }
+        } catch (RuntimeException e) {
+            logger.error("Failed to get approve history: ", e);
+            return null;
+        }
+        return historyList;
     }
 }
 

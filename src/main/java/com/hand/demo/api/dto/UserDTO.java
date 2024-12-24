@@ -20,8 +20,4 @@ public class UserDTO implements Cacheable {
     @CacheValue(key = HZeroCacheKey.USER, primaryKey = "userId", searchKey = "realName",
             structure = CacheValue.DataStructure.MAP_OBJECT)
     private String realName;
-
-    @CacheValue(key = HZeroCacheKey.USER, primaryKey = "userId", searchKey = "tenantNum",
-            structure = CacheValue.DataStructure.MAP_OBJECT)
-    private String tenantCode;
 }

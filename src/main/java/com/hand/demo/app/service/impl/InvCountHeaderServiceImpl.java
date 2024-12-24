@@ -15,7 +15,6 @@ import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.hzero.boot.platform.code.builder.CodeRuleBuilder;
 import org.hzero.boot.platform.profile.ProfileClient;
-import org.hzero.boot.workflow.WorkflowClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
@@ -44,9 +43,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvCountExtraService extraService;
     private final InvStockService stockService;
     private final IamDepartmentService departmentService;
+    private final IamCompanyService companyService;
     private final IamDepartmentRepository departmentRepository;
+
     private final ProfileClient profileClient;
-    private final WorkflowClient workflowClient;
     // TODO: Make sure it's okay to call the repository directly. p.s: no, it's bad practice
     private final InvMaterialRepository materialRepository;
     private final InvBatchRepository batchRepository;
@@ -63,19 +63,20 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     @Autowired
     public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository, InvWarehouseService warehouseService,
                                      InvCountLineService lineService, InvCountExtraService extraService, InvStockService stockService,
-                                     IamDepartmentService departmentService, ProfileClient profileClient, WorkflowClient workflowClient,
+                                     IamDepartmentService departmentService, IamCompanyService companyService, ProfileClient profileClient,
                                      InvMaterialRepository materialRepository, InvBatchRepository batchRepository,
                                      IamCompanyRepository companyRepository, IamDepartmentRepository departmentRepository,
                                      InvWarehouseRepository warehouseRepository,
-                                     InvCountLineRepository lineRepository, CodeRuleBuilder codeRuleBuilder, Utils utils, WorkflowService workflowService) {
+                                     InvCountLineRepository lineRepository, CodeRuleBuilder codeRuleBuilder,
+                                     Utils utils, WorkflowService workflowService) {
         this.invCountHeaderRepository = invCountHeaderRepository;
         this.warehouseService = warehouseService;
         this.lineService = lineService;
         this.extraService = extraService;
         this.stockService = stockService;
         this.departmentService = departmentService;
+        this.companyService = companyService;
         this.profileClient = profileClient;
-        this.workflowClient = workflowClient;
         this.materialRepository = materialRepository;
         this.batchRepository = batchRepository;
         this.companyRepository = companyRepository;
@@ -234,21 +235,25 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     * 7. Counting order report dataset method (countingOrderReportDs)
+     * API 7: Counting order report dataset method (countingOrderReportDs)
+     * Retrieves and processes the Counting Order Report Dataset.
+     *
+     * @param invCountHeader Input DTO containing filters and parameters for the report.
+     * @return List of enriched InvCountHeaderDTO objects for reporting purposes.
      */
     @Override
     public List<InvCountHeaderDTO> countingOrderReportDs(InvCountHeaderDTO invCountHeader) {
-        // Fetch the Invoice Header List
+        // Map codes to IDs before querying the repository
+        reportMapCodesToIds(invCountHeader);
+
+        // Fetch list of inventory count headers based on the updated input DTO
         List<InvCountHeaderDTO> invCountHeaderDTOList = invCountHeaderRepository.selectList(invCountHeader);
 
-        // Assumption: The input is only one header id
-        InvCountHeaderDTO invCountHeaderDTO = invCountHeaderDTOList.get(0);
-
-        // Populate the header with related data from details
-        populateHeaderDetails(invCountHeaderDTO);
-
-        // Add additional data for report
-        populateHeaderDetailsReport(invCountHeaderDTO);
+        // Populates each header DTO with additional details required for the report
+        invCountHeaderDTOList.forEach(invCountHeaderDTO -> {
+            invCountHeaderDTO.setWarehouseCode(invCountHeader.getWarehouseCode()); // Retain original warehouse code
+            populateHeaderReport(invCountHeaderDTO); // Add additional report-specific fields
+        });
 
         return invCountHeaderDTOList;
     }
@@ -259,11 +264,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     *
-     *
-     *
-     *
-     *
      *
      *
      */
@@ -1118,35 +1118,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     * Populates the InvCountHeaderDTO with required report fields.
-     *
-     * @param header the InvCountHeaderDTO to populate
-     */
-    private void populateHeaderDetailsReport(InvCountHeaderDTO header) {
-        // Add additional field for reporting
-        // Creator name and tenant
-        UserDTO userDTO = new UserDTO();
-        userDTO.setUserId(header.getCreatedBy());
-
-        // Department name and warehouse code
-        String departmentName = departmentService.getDepartmentName(header.getDepartmentId());
-        String warehouseCode = warehouseService.getWarehouseCode(header.getWarehouseId());
-
-        header.setDepartmentName(departmentName);
-        header.setWareHouseCode(warehouseCode);
-        header.setCreator(userDTO);
-
-        // Set creator for the invoice line
-        for (InvCountLineDTO line : header.getCountOrderLineList()) {
-            for (UserDTO user : header.getCounterList()) {
-                if (line.getCreatedBy().equals(user.getUserId())) {
-                    line.setCounter(user);
-                }
-            }
-        }
-    }
-
-    /**
      * Perform validation checks for inventory counting orders before submission.
      */
     private InvCountInfoDTO submitCheck(List<InvCountHeaderDTO> invCountHeaderDTOS) {
@@ -1325,6 +1296,89 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         header.setSupervisorIds(currentUserId);
 
         return header;
+    }
+
+    /**
+     * Maps codes (company, department, warehouse) to their corresponding IDs for report
+     * and sets them in the given DTO.
+     *
+     * @param invCountHeader The DTO containing the codes to map.
+     */
+    private void reportMapCodesToIds(InvCountHeaderDTO invCountHeader) {
+        // Map company code to company ID
+        String companyCode = invCountHeader.getCompanyCode();
+        if (companyCode != null && !companyCode.isEmpty()) {
+            Long companyId = companyService.getIdByCompanyCode(companyCode);
+            invCountHeader.setCompanyId(companyId);
+        }
+
+        // Map department code to department ID
+        String departmentCode = invCountHeader.getDepartmentCode();
+        if (departmentCode != null && !departmentCode.isEmpty()) {
+            Long departmentId = departmentService.getIdByDepartmentCode(departmentCode);
+            invCountHeader.setDepartmentId(departmentId);
+        }
+
+        // Map warehouse code to warehouse ID
+        String warehouseCode = invCountHeader.getWarehouseCode();
+        if (warehouseCode != null && !warehouseCode.isEmpty()) {
+            Long warehouseId = warehouseService.getIdByWarehouseCode(warehouseCode);
+            invCountHeader.setWarehouseId(warehouseId);
+        }
+    }
+
+    /**
+     * Populates a Counting Order Header DTO with additional fields required for reporting.
+     *
+     * @param header header The InvCountHeaderDTO to be populated with report-specific data.
+     */
+    private void populateHeaderReport(InvCountHeaderDTO header) {
+        // Retrieve and associate count order lines for the given header ID
+        header.setCountOrderLineList(lineService.selectListByHeaderId(header.getCountHeaderId()));
+
+        // Parse and convert counter and supervisor IDs to UserDTO lists
+        header.setCounterList(convertIdsToUserDTOs(parseIds(header.getCounterIds())));
+        header.setSupervisorList(convertIdsToUserDTOs(parseIds(header.getSupervisorIds())));
+
+        // Add department name to the header based on department ID
+        String departmentName = departmentService.getDepartmentName(header.getDepartmentId());
+        header.setDepartmentName(departmentName);
+
+        // Associate line creators with their corresponding user details
+        for (InvCountLineDTO line : header.getCountOrderLineList()) {
+            header.getCounterList().stream()
+                    .filter(user -> line.getCreatedBy().equals(user.getUserId()))
+                    .findFirst()
+                    .ifPresent(line::setCounter);
+        }
+
+        // Fetch and set the approval history for the current header
+        Long tenantId = utils.getUserVO().getTenantId();
+        header.setApprovalHistory(workflowService.getApproveHistory(tenantId, header));
+
+        // Convert snapshot material IDs and batch IDs into corresponding DTO lists
+        if (header.getSnapshotMaterialIds() != null && !header.getSnapshotMaterialIds().isEmpty()) {
+            header.setSnapshotMaterialList(convertToMaterialDTOs(header.getSnapshotMaterialIds()));
+        }
+        if (header.getSnapshotBatchIds() != null && !header.getSnapshotBatchIds().isEmpty()) {
+            header.setSnapshotBatchList(convertToBatchDTOs(header.getSnapshotBatchIds()));
+        }
+
+        // Set material code list as a comma-separated string
+        if (header.getSnapshotMaterialList() != null) {
+            String materialCodeList = header.getSnapshotMaterialList().stream()
+                    .map(MaterialDTO::getMaterialCode) // Extract material code
+                    .collect(Collectors.joining(",")); // Join them with a comma
+            header.setMaterialCodeList(materialCodeList);
+        }
+
+        // Set batch code list as a comma-separated string
+        if (header.getSnapshotBatchList() != null) {
+            String batchCodeList = header.getSnapshotBatchList().stream()
+                    .map(BatchDTO::getBatchCode) // Extract batch code
+                    .collect(Collectors.joining(",")); // Join them with a comma
+            header.setBatchCodeList(batchCodeList);
+        }
     }
 }
 

@@ -134,7 +134,7 @@ public class InvCountHeaderController extends BaseController {
     @GetMapping("/order-report-dataset")
     public ResponseEntity<List<InvCountHeaderDTO>> countingOrderReportDs(@PathVariable Long organizationId,
                                                                          InvCountHeaderDTO invCountHeader) {
-        validObject(invCountHeader, InvCountHeader.Save.class);
+        // validObject(invCountHeader, InvCountHeader.Save.class);
         return Results.success(invCountHeaderService.countingOrderReportDs(invCountHeader));
     }
 

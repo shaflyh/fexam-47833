@@ -4,6 +4,9 @@ import com.hand.demo.domain.entity.InvCountHeader;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Getter;
 import lombok.Setter;
+import org.hzero.boot.workflow.dto.RunTaskHistory;
+import org.hzero.common.HZeroCacheKey;
+import org.hzero.core.cache.CacheValue;
 import org.hzero.core.cache.Cacheable;
 
 import java.util.List;
@@ -50,13 +53,25 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
     private String employeeNumber;
 
     // Additional field for reporting
+    private String companyCode;
+
+    private String departmentCode;
+
+    private String warehouseCode;
+
     private String departmentName;
 
-    private String wareHouseCode;
+    private String materialCodeList;
 
-    private UserDTO creator;
+    private String batchCodeList;
 
-    private String countingDifferences;
+    private List<RunTaskHistory> approvalHistory;
 
-    private List<String> approvalHistory;
+    @CacheValue(key = HZeroCacheKey.USER, primaryKey = "createdBy", searchKey = "tenantNum",
+            structure = CacheValue.DataStructure.MAP_OBJECT)
+    private String tenantCode;
+
+    @CacheValue(key = HZeroCacheKey.USER, primaryKey = "createdBy", searchKey = "realName",
+            structure = CacheValue.DataStructure.MAP_OBJECT)
+    private String creatorName;
 }
