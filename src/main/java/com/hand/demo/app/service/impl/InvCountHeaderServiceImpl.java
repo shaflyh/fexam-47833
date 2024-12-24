@@ -6,7 +6,7 @@ import com.hand.demo.api.dto.*;
 import com.hand.demo.app.service.*;
 import com.hand.demo.domain.entity.*;
 import com.hand.demo.domain.repository.*;
-import com.hand.demo.infra.constant.CodeRuleConst;
+import com.hand.demo.infra.constant.InvConstants;
 import com.hand.demo.infra.util.Utils;
 import io.choerodon.core.domain.Page;
 import io.choerodon.core.exception.CommonException;
@@ -90,7 +90,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         List<InvCountHeaderDTO> saveResult = manualSave(countInfo.getSuccessList());
         // Update the header info with data after saving
         countInfo.setSuccessList(saveResult);
-        countInfo.setTotalErrorMsg("All validation successful. Orders saved.");
+        countInfo.setTotalErrorMsg(InvConstants.Messages.ORDER_SAVE_SUCCESSFUL);
 
         // return latest data
         return countInfo;
@@ -106,7 +106,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         if (checkResult.getErrorList().isEmpty()) {
             // Delete Invoice Headers if all validation succeeds
             invCountHeaderRepository.batchDeleteByPrimaryKey(new ArrayList<>(invCountHeaders));
-            checkResult.setTotalErrorMsg("All validation successful. Orders deleted.");
+            checkResult.setTotalErrorMsg(InvConstants.Messages.ORDER_REMOVE_SUCCESSFUL);
         }
         return checkResult;
     }
@@ -157,12 +157,12 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // 5. Counting order synchronization WMS method
         InvCountInfoDTO syncWmsResult = countSyncWms(executeResult);
-        executeInfoResult.setTotalErrorMsg("All validation successful. Orders executed.");
+        executeInfoResult.setTotalErrorMsg(InvConstants.Messages.ORDER_EXECUTION_SUCCESSFUL);
         executeInfoResult.setSuccessList(syncWmsResult.getSuccessList());
 
         // Validation error : throw exception and rollback if error list not empty
         if (!executeInfoResult.getErrorList().isEmpty()) {
-            throw new CommonException("Counting order execution failed: " + executeInfoResult.getTotalErrorMsg());
+            throw new CommonException(InvConstants.ErrorMessages.ORDER_EXECUTION_FAILED, executeInfoResult.getTotalErrorMsg());
         }
 
         return executeInfoResult;
@@ -366,7 +366,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         for (InvCountHeader countHeader : insertList) {
             Map<String, String> codeBuilderMap = new HashMap<>();
             codeBuilderMap.put("customSegment", countHeader.getTenantId().toString() + "-");
-            String invCountNumber = codeRuleBuilder.generateCode(CodeRuleConst.INV_COUNT_NUMBER, codeBuilderMap);
+            String invCountNumber = codeRuleBuilder.generateCode(InvConstants.CodeRules.INV_COUNT_NUMBER, codeBuilderMap);
             countHeader.setCountNumber(invCountNumber);
         }
         logger.info("Save and update InvCountHeaders");
@@ -523,14 +523,24 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private String validateSave(InvCountHeaderDTO headerDTO, InvCountHeader existingHeader) {
         // a. Ensure the count status is not being changed
         if (!headerDTO.getCountStatus().equals(existingHeader.getCountStatus())) {
-            return "Invoice count status cannot be updated";
+            return InvConstants.ErrorMessages.COUNT_STATUS_CANNOT_BE_UPDATED;
         }
 
         // b. Check if the current status allows modification
-        Set<String> allowedStatuses = new HashSet<>(Arrays.asList("DRAFT", "INCOUNTING", "REJECTED", "WITHDRAWN"));
+        Set<String> allowedStatuses = new HashSet<>(Arrays.asList(
+                InvConstants.CountStatus.DRAFT,
+                InvConstants.CountStatus.IN_COUNTING,
+                InvConstants.CountStatus.REJECTED,
+                InvConstants.CountStatus.WITHDRAWN
+        ));
         String currentStatus = existingHeader.getCountStatus();
         if (!allowedStatuses.contains(currentStatus)) {
-            return "Only 'Draft', 'In Counting', 'Rejected', and 'Withdrawn' statuses can be modified";
+            return String.format(InvConstants.ErrorMessages.INVALID_STATUS_UPDATE,
+                    InvConstants.CountStatus.DRAFT,
+                    InvConstants.CountStatus.IN_COUNTING,
+                    InvConstants.CountStatus.REJECTED,
+                    InvConstants.CountStatus.WITHDRAWN
+            );
         }
 
         // c. Validate the current user based on the document's status and user roles
@@ -538,13 +548,15 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         Long creatorId = existingHeader.getCreatedBy(); // Get the ID of the user who created the document
 
         // c.1. If the status is 'DRAFT', only the creator can modify the document
-        if ("DRAFT".equals(currentStatus) && !creatorId.equals(currentOperator)) {
-            return "Document in draft status can only be modified by the document creator.";
+        if (InvConstants.CountStatus.DRAFT.equals(currentStatus) && !creatorId.equals(currentOperator)) {
+            return InvConstants.ErrorMessages.INVALID_DOCUMENT_CREATOR;
         }
 
         // c.2. If the status is one of 'INCOUNTING', 'REJECTED', or 'WITHDRAWN', perform additional validations
-        Set<String> statusWithAdditionalValidation =
-                new HashSet<>(Arrays.asList("INCOUNTING", "REJECTED", "WITHDRAWN"));
+        Set<String> statusWithAdditionalValidation = new HashSet<>(Arrays.asList(
+                InvConstants.CountStatus.IN_COUNTING,
+                InvConstants.CountStatus.REJECTED,
+                InvConstants.CountStatus.WITHDRAWN));
         if (statusWithAdditionalValidation.contains(currentStatus)) {
             // Parse supervisor and counter IDs from the existing header
             List<Long> supervisorIds = parseIds(existingHeader.getSupervisorIds());
@@ -555,7 +567,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
             // If it's a WMS warehouse, only supervisors are allowed to operate
             if (isWmsWarehouse && !supervisorIds.contains(currentOperator)) {
-                return "The current warehouse is a WMS warehouse, and only the supervisor is allowed to operate";
+                return InvConstants.ErrorMessages.INVALID_SUPERVISOR;
             }
 
             // c.3. Check if the current user is either a counter, supervisor, or the document creator
@@ -564,7 +576,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             boolean isCreator = creatorId.equals(currentOperator);
 
             if (!isCounter && !isSupervisor && !isCreator) {
-                return "Only the document creator, counter, or supervisor can modify the document for the status of in counting, rejected, or withdrawn.";
+                return InvConstants.ErrorMessages.INVALID_USER_ROLE_FOR_OPERATION;
             }
         }
         // All validations passed; no error
@@ -683,55 +695,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }).collect(Collectors.toList());
     }
 
-    // /**
-    //  * Converts a comma-separated string of material IDs to a list of MaterialDTOs.
-    //  *
-    //  * @param materialIds the comma-separated material IDs
-    //  * @return a list of MaterialDTOs
-    //  */
-    // private List<MaterialDTO> convertToMaterialDTOs(String materialIds) {
-    //     List<InvMaterial> materials = materialRepository.selectByIds(materialIds);
-    //     return materials.stream().map(this::mapToMaterialDTO).collect(Collectors.toList());
-    // }
-
-    // /**
-    //  * Converts a comma-separated string of batch IDs to a list of BatchDTOs.
-    //  *
-    //  * @param batchIds the comma-separated batch IDs
-    //  * @return a list of BatchDTOs
-    //  */
-    // private List<BatchDTO> convertToBatchDTOs(String batchIds) {
-    //     List<InvBatch> batches = batchRepository.selectByIds(batchIds);
-    //     return batches.stream().map(this::mapToBatchDTO).collect(Collectors.toList());
-    // }
-
-    // /**
-    //  * Maps an InvMaterial entity to a MaterialDTO.
-    //  *
-    //  * @param material the InvMaterial entity
-    //  * @return the corresponding MaterialDTO
-    //  */
-    // private MaterialDTO mapToMaterialDTO(InvMaterial material) {
-    //     MaterialDTO dto = new MaterialDTO();
-    //     dto.setMaterialId(material.getMaterialId());
-    //     dto.setMaterialCode(material.getMaterialCode());
-    //     return dto;
-    // }
-
-    // /**
-    //  * Maps an InvBatch entity to a BatchDTO.
-    //  *
-    //  * @param batch the InvBatch entity
-    //  * @return the corresponding BatchDTO
-    //  */
-    // private BatchDTO mapToBatchDTO(InvBatch batch) {
-    //     BatchDTO dto = new BatchDTO();
-    //     dto.setBatchId(batch.getBatchId());
-    //     dto.setBatchCode(batch.getBatchCode());
-    //     return dto;
-    // }
-
-
     private InvCountInfoDTO executeCheck(List<InvCountHeaderDTO> invCountHeaders) {
         // Initialize the response DTO
         InvCountInfoDTO checkResult = new InvCountInfoDTO();
@@ -778,13 +741,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      */
     private String validateExecute(InvCountHeaderDTO headerDTO) {
         // a. document status validation: Only draft status can execute
-        if (!"DRAFT".equals(headerDTO.getCountStatus())) {
-            return " Only draft status can execute";
+        if (!InvConstants.CountStatus.DRAFT.equals(headerDTO.getCountStatus())) {
+            return InvConstants.ErrorMessages.ONLY_DRAFT_STATUS_EXECUTE;
         }
 
         // b. current login user validation: Only the document creator can execute
         if (!headerDTO.getCreatedBy().equals(DetailsHelper.getUserDetails().getUserId())) {
-            return " Only the document creator can execute";
+            return InvConstants.ErrorMessages.ONLY_DOCUMENT_CREATOR_EXECUTE;
         }
 
         // c. value set validation
@@ -792,26 +755,27 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // d. company, department, warehouse validation
         if (companyService.getById(headerDTO.getCompanyId()) == null) {
-            return "Company does not exist";
+            return InvConstants.ErrorMessages.COMPANY_DOES_NOT_EXIST;
         }
         if (departmentService.getById(headerDTO.getDepartmentId()) == null) {
-            return "Department does not exist";
+            return InvConstants.ErrorMessages.DEPARTMENT_DOES_NOT_EXIST;
         }
         if (warehouseService.getById(headerDTO.getWarehouseId()) == null) {
-            return "Warehouse does not exist";
+            return InvConstants.ErrorMessages.WAREHOUSE_DOES_NOT_EXIST;
         }
 
         // e. on hand quantity validation
         List<InvStock> invStocks = stockService.fetchValidStocks(headerDTO);
         if (invStocks == null || invStocks.isEmpty()) {
-            return "Unable to query on hand quantity data.";
+            return InvConstants.ErrorMessages.UNABLE_TO_QUERY_ON_HAND_QUANTITY;
         }
 
-        // TODO: Check Date validation
         // Updates the countTimeStr field of a HeaderDTO object by formatting it based
         // on the countType field. If the countType is "MONTH", the time is formatted
         // as "yyyy-MM". If the countType is "YEAR", it is formatted as "yyyy".
-        String limitFormat = headerDTO.getCountType().equals("MONTH") ? "yyyy-MM" : "yyyy";
+        String limitFormat = headerDTO.getCountType().equals("MONTH") ?
+                InvConstants.Validation.COUNT_TIME_FORMAT_MONTH :
+                InvConstants.Validation.COUNT_TIME_FORMAT_YEAR;
         String time = headerDTO.getCountTimeStr();
         try {
             // Parse the input time string
@@ -820,7 +784,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             String formattedTime = dateTime.format(DateTimeFormatter.ofPattern(limitFormat));
             headerDTO.setCountTimeStr(formattedTime);
         } catch (DateTimeParseException e) {
-            throw new CommonException("Invalid date format: " + time);
+            throw new CommonException(String.format(InvConstants.ErrorMessages.INVALID_DATE_FORMAT, time));
         }
 
         // All validations passed; no error
@@ -847,7 +811,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         List<InvCountLine> totalLines = new ArrayList<>();
         for (InvCountHeader header : fetchedExistingHeaders) {
             // 1. Update the counting order status to "INCOUNTING"
-            header.setCountStatus("INCOUNTING");
+            header.setCountStatus(InvConstants.CountStatus.IN_COUNTING);
 
             // 2. Fetch valid stock data for the header
             List<InvStock> invStocks = stockService.fetchValidStocks(convertToDTO(header));
@@ -896,10 +860,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
     // Group stocks by the counting dimension (SKU or LOT)
     private Map<Object, List<InvStock>> groupStocksByDimension(List<InvStock> stocks, String countDimension) {
-        if ("SKU".equals(countDimension)) {
+        if (countDimension.equals(InvConstants.CountDimension.SKU)) {
             // Group by material_id
             return stocks.stream().collect(Collectors.groupingBy(InvStock::getMaterialId));
-        } else if ("LOT".equals(countDimension)) {
+        } else if (countDimension.equals(InvConstants.CountDimension.LOT)) {
             // Group by material_id + batch_id
             return stocks.stream().collect(Collectors.groupingBy(stock ->
                     new AbstractMap.SimpleEntry<>(stock.getMaterialId(), stock.getBatchId())
@@ -976,8 +940,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             List<InvCountExtra> fetchedExtras = extraService.fetchExtrasByHeaderId(countHeaderId);
             if (fetchedExtras.isEmpty()) {
                 // Initialize synchronization extras
-                InvCountExtra syncStatusExtra = extraService.createExtra(tenantId, countHeaderId, "wms_sync_status");
-                InvCountExtra syncMsgExtra = extraService.createExtra(tenantId, countHeaderId, "wms_sync_error_message");
+                InvCountExtra syncStatusExtra = extraService.createExtra(
+                        tenantId, countHeaderId, InvConstants.ExtraKeys.WMS_SYNC_STATUS);
+                InvCountExtra syncMsgExtra = extraService.createExtra(
+                        tenantId, countHeaderId, InvConstants.ExtraKeys.WMS_SYNC_ERROR_MESSAGE);
 
                 // Check if the warehouse is a WMS warehouse and call the WMS interface to synchronize the counting order
                 if (warehouse.getIsWmsWarehouse().equals(1)) {
@@ -989,22 +955,25 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
                     // Call WMS API and handle response
                     Map<String, Object> responseBody = utils.callWmsApiPushCountOrder(
-                            "HZERO", "FEXAM_WMS", "fexam-wms-api.thirdAddCounting", headerJson);
+                            InvConstants.Api.WMS_NAMESPACE,
+                            InvConstants.Api.WMS_SERVER_CODE,
+                            InvConstants.Api.WMS_INTERFACE_CODE,
+                            headerJson);
 
                     // Check returnStatus and handle logic
                     String returnStatus = (String) responseBody.get("returnStatus");
                     if ("S".equals(returnStatus)) { // Success case
-                        syncStatusExtra.setProgramValue("SUCCESS");
+                        syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.SUCCESS);
                         syncMsgExtra.setProgramValue("");
                         // Record WMS document number
                         header.setRelatedWmsOrderCode((String) responseBody.get("code"));
                     } else { // Error case
-                        syncStatusExtra.setProgramValue("ERROR");
+                        syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.ERROR);
                         syncMsgExtra.setProgramValue((String) responseBody.get("returnMsg"));
                     }
                 } else {
                     // Not a WMS warehouse
-                    syncStatusExtra.setProgramValue("SKIP");
+                    syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.SKIP);
                 }
                 // Save synchronization extras
                 extraService.saveExtras(syncStatusExtra, syncMsgExtra);
