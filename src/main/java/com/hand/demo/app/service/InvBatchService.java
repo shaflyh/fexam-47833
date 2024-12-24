@@ -1,5 +1,6 @@
 package com.hand.demo.app.service;
 
+import com.hand.demo.api.dto.BatchDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import com.hand.demo.domain.entity.InvBatch;
@@ -31,5 +32,13 @@ public interface InvBatchService {
     void saveData(List<InvBatch> invBatchs);
 
     InvBatch selectById(Long batchId);
+
+    /**
+     * Converts a comma-separated string of batch IDs to a list of BatchDTOs.
+     *
+     * @param batchIds the comma-separated batch IDs
+     * @return a list of BatchDTOs
+     */
+    List<BatchDTO> convertToBatchDTOs(String batchIds);
 }
 

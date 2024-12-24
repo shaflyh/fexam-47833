@@ -52,5 +52,10 @@ public class IamCompanyServiceImpl implements IamCompanyService {
         }
         return company.getCompanyId();
     }
+
+    @Override
+    public IamCompany getById(Long id) {
+        return iamCompanyRepository.selectByPrimary(id);
+    }
 }
 

@@ -64,5 +64,11 @@ public class IamDepartmentServiceImpl implements IamDepartmentService {
         }
         return department.getDepartmentId();
     }
+
+    @Override
+    public IamDepartment getById(Long id) {
+        return iamDepartmentRepository.selectByPrimary(id);
+    }
+
 }
 

@@ -1,5 +1,6 @@
 package com.hand.demo.app.service;
 
+import com.hand.demo.api.dto.MaterialDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import com.hand.demo.domain.entity.InvMaterial;
@@ -31,5 +32,13 @@ public interface InvMaterialService {
     void saveData(List<InvMaterial> invMaterials);
 
     InvMaterial selectById(Long materialId);
+
+    /**
+     * Converts a comma-separated string of material IDs to a list of MaterialDTOs.
+     *
+     * @param materialIds the comma-separated material IDs
+     * @return a list of MaterialDTOs
+     */
+    List<MaterialDTO> convertToMaterialDTOs(String materialIds);
 }
 

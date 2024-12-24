@@ -41,5 +41,9 @@ public interface InvCountLineService {
      * @return List of CountLineId to InvCountLine.
      */
     List<InvCountLine> fetchExistingLines(List<InvCountLine> lineList);
+
+    List<InvCountLine> batchUpdate(List<InvCountLine> invCountLines);
+
+    List<InvCountLine> batchInsert(List<InvCountLine> invCountLines);
 }
 

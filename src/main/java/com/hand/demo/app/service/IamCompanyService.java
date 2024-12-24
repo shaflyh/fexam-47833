@@ -31,5 +31,7 @@ public interface IamCompanyService {
     void saveData(List<IamCompany> iamCompanys);
 
     Long getIdByCompanyCode(String companyCode);
+
+    IamCompany getById(Long id);
 }
 

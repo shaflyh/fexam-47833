@@ -44,14 +44,9 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     private final InvStockService stockService;
     private final IamDepartmentService departmentService;
     private final IamCompanyService companyService;
-    private final IamDepartmentRepository departmentRepository;
-
+    private final InvMaterialService materialService;
+    private final InvBatchService batchService;
     private final ProfileClient profileClient;
-    // TODO: Make sure it's okay to call the repository directly. p.s: no, it's bad practice
-    private final InvMaterialRepository materialRepository;
-    private final InvBatchRepository batchRepository;
-    private final IamCompanyRepository companyRepository;
-    private final InvWarehouseRepository warehouseRepository;
     private final InvCountLineRepository lineRepository;
     private final CodeRuleBuilder codeRuleBuilder;
     private final Utils utils;
@@ -64,10 +59,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     public InvCountHeaderServiceImpl(InvCountHeaderRepository invCountHeaderRepository, InvWarehouseService warehouseService,
                                      InvCountLineService lineService, InvCountExtraService extraService, InvStockService stockService,
                                      IamDepartmentService departmentService, IamCompanyService companyService, ProfileClient profileClient,
-                                     InvMaterialRepository materialRepository, InvBatchRepository batchRepository,
-                                     IamCompanyRepository companyRepository, IamDepartmentRepository departmentRepository,
-                                     InvWarehouseRepository warehouseRepository,
-                                     InvCountLineRepository lineRepository, CodeRuleBuilder codeRuleBuilder,
+                                     InvMaterialService materialService, InvBatchService batchService, InvCountLineRepository lineRepository,
+                                     CodeRuleBuilder codeRuleBuilder,
                                      Utils utils, WorkflowService workflowService) {
         this.invCountHeaderRepository = invCountHeaderRepository;
         this.warehouseService = warehouseService;
@@ -77,11 +70,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         this.departmentService = departmentService;
         this.companyService = companyService;
         this.profileClient = profileClient;
-        this.materialRepository = materialRepository;
-        this.batchRepository = batchRepository;
-        this.companyRepository = companyRepository;
-        this.departmentRepository = departmentRepository;
-        this.warehouseRepository = warehouseRepository;
+        this.materialService = materialService;
+        this.batchService = batchService;
         this.lineRepository = lineRepository;
         this.codeRuleBuilder = codeRuleBuilder;
         this.utils = utils;
@@ -225,7 +215,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         updateLineData(fetchedInvLines, invCountHeaderDTO.getCountOrderLineList());
 
         // Batch update the lines in the database
-        List<InvCountLine> resultLines = lineRepository.batchUpdateByPrimaryKeySelective(fetchedInvLines);
+        List<InvCountLine> resultLines = lineService.batchUpdate(fetchedInvLines);
 
         // Step 4: Convert updated lines to DTO and update the header DTO
         invCountHeaderDTO.setCountOrderLineList(convertLinesToDTOList(resultLines));
@@ -660,11 +650,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         header.setSupervisorList(convertIdsToUserDTOs(parseIds(header.getSupervisorIds())));
 
         // Populate snapshot materials and batches (it might be null because it's not necessary for header creation)
-        if (header.getSnapshotMaterialIds() != null && !header.getSnapshotMaterialIds().isEmpty()) {
-            header.setSnapshotMaterialList(convertToMaterialDTOs(header.getSnapshotMaterialIds()));
+        String materialIds = header.getSnapshotMaterialIds();
+        if (materialIds != null && !materialIds.isEmpty()) {
+            header.setSnapshotMaterialList(materialService.convertToMaterialDTOs(materialIds));
         }
-        if (header.getSnapshotBatchIds() != null && !header.getSnapshotBatchIds().isEmpty()) {
-            header.setSnapshotBatchList(convertToBatchDTOs(header.getSnapshotBatchIds()));
+        String batchIds = header.getSnapshotBatchIds();
+        if (batchIds != null && !batchIds.isEmpty()) {
+            header.setSnapshotBatchList(batchService.convertToBatchDTOs(batchIds));
         }
 
         // Determine if the warehouse is a WMS warehouse
@@ -691,53 +683,53 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }).collect(Collectors.toList());
     }
 
-    /**
-     * Converts a comma-separated string of material IDs to a list of MaterialDTOs.
-     *
-     * @param materialIds the comma-separated material IDs
-     * @return a list of MaterialDTOs
-     */
-    private List<MaterialDTO> convertToMaterialDTOs(String materialIds) {
-        List<InvMaterial> materials = materialRepository.selectByIds(materialIds);
-        return materials.stream().map(this::mapToMaterialDTO).collect(Collectors.toList());
-    }
+    // /**
+    //  * Converts a comma-separated string of material IDs to a list of MaterialDTOs.
+    //  *
+    //  * @param materialIds the comma-separated material IDs
+    //  * @return a list of MaterialDTOs
+    //  */
+    // private List<MaterialDTO> convertToMaterialDTOs(String materialIds) {
+    //     List<InvMaterial> materials = materialRepository.selectByIds(materialIds);
+    //     return materials.stream().map(this::mapToMaterialDTO).collect(Collectors.toList());
+    // }
 
-    /**
-     * Converts a comma-separated string of batch IDs to a list of BatchDTOs.
-     *
-     * @param batchIds the comma-separated batch IDs
-     * @return a list of BatchDTOs
-     */
-    private List<BatchDTO> convertToBatchDTOs(String batchIds) {
-        List<InvBatch> batches = batchRepository.selectByIds(batchIds);
-        return batches.stream().map(this::mapToBatchDTO).collect(Collectors.toList());
-    }
+    // /**
+    //  * Converts a comma-separated string of batch IDs to a list of BatchDTOs.
+    //  *
+    //  * @param batchIds the comma-separated batch IDs
+    //  * @return a list of BatchDTOs
+    //  */
+    // private List<BatchDTO> convertToBatchDTOs(String batchIds) {
+    //     List<InvBatch> batches = batchRepository.selectByIds(batchIds);
+    //     return batches.stream().map(this::mapToBatchDTO).collect(Collectors.toList());
+    // }
 
-    /**
-     * Maps an InvMaterial entity to a MaterialDTO.
-     *
-     * @param material the InvMaterial entity
-     * @return the corresponding MaterialDTO
-     */
-    private MaterialDTO mapToMaterialDTO(InvMaterial material) {
-        MaterialDTO dto = new MaterialDTO();
-        dto.setMaterialId(material.getMaterialId());
-        dto.setMaterialCode(material.getMaterialCode());
-        return dto;
-    }
+    // /**
+    //  * Maps an InvMaterial entity to a MaterialDTO.
+    //  *
+    //  * @param material the InvMaterial entity
+    //  * @return the corresponding MaterialDTO
+    //  */
+    // private MaterialDTO mapToMaterialDTO(InvMaterial material) {
+    //     MaterialDTO dto = new MaterialDTO();
+    //     dto.setMaterialId(material.getMaterialId());
+    //     dto.setMaterialCode(material.getMaterialCode());
+    //     return dto;
+    // }
 
-    /**
-     * Maps an InvBatch entity to a BatchDTO.
-     *
-     * @param batch the InvBatch entity
-     * @return the corresponding BatchDTO
-     */
-    private BatchDTO mapToBatchDTO(InvBatch batch) {
-        BatchDTO dto = new BatchDTO();
-        dto.setBatchId(batch.getBatchId());
-        dto.setBatchCode(batch.getBatchCode());
-        return dto;
-    }
+    // /**
+    //  * Maps an InvBatch entity to a BatchDTO.
+    //  *
+    //  * @param batch the InvBatch entity
+    //  * @return the corresponding BatchDTO
+    //  */
+    // private BatchDTO mapToBatchDTO(InvBatch batch) {
+    //     BatchDTO dto = new BatchDTO();
+    //     dto.setBatchId(batch.getBatchId());
+    //     dto.setBatchCode(batch.getBatchCode());
+    //     return dto;
+    // }
 
 
     private InvCountInfoDTO executeCheck(List<InvCountHeaderDTO> invCountHeaders) {
@@ -799,13 +791,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // TODO: Ask mr zeki if we need to validate the value set again.
 
         // d. company, department, warehouse validation
-        if (companyRepository.selectByPrimary(headerDTO.getCompanyId()) == null) {
+        if (companyService.getById(headerDTO.getCompanyId()) == null) {
             return "Company does not exist";
         }
-        if (departmentRepository.selectByPrimary(headerDTO.getDepartmentId()) == null) {
+        if (departmentService.getById(headerDTO.getDepartmentId()) == null) {
             return "Department does not exist";
         }
-        if (warehouseRepository.selectByPrimary(headerDTO.getWarehouseId()) == null) {
+        if (warehouseService.getById(headerDTO.getWarehouseId()) == null) {
             return "Warehouse does not exist";
         }
 
@@ -1358,10 +1350,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // Convert snapshot material IDs and batch IDs into corresponding DTO lists
         if (header.getSnapshotMaterialIds() != null && !header.getSnapshotMaterialIds().isEmpty()) {
-            header.setSnapshotMaterialList(convertToMaterialDTOs(header.getSnapshotMaterialIds()));
+            header.setSnapshotMaterialList(materialService.convertToMaterialDTOs(header.getSnapshotMaterialIds()));
         }
         if (header.getSnapshotBatchIds() != null && !header.getSnapshotBatchIds().isEmpty()) {
-            header.setSnapshotBatchList(convertToBatchDTOs(header.getSnapshotBatchIds()));
+            header.setSnapshotBatchList(batchService.convertToBatchDTOs(header.getSnapshotBatchIds()));
         }
 
         // Set material code list as a comma-separated string

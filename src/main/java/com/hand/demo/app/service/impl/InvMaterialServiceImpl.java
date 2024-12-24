@@ -1,5 +1,6 @@
 package com.hand.demo.app.service.impl;
 
+import com.hand.demo.api.dto.MaterialDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import com.hand.demo.domain.entity.InvMaterial;
 import com.hand.demo.domain.repository.InvMaterialRepository;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -46,6 +48,28 @@ public class InvMaterialServiceImpl implements InvMaterialService {
     @Override
     public InvMaterial selectById(Long materialId) {
         return invMaterialRepository.selectByPrimaryKey(materialId);
+    }
+
+    /**
+     * Converts a comma-separated string of material IDs to a list of MaterialDTOs.
+     */
+    @Override
+    public List<MaterialDTO> convertToMaterialDTOs(String materialIds) {
+        List<InvMaterial> materials = invMaterialRepository.selectByIds(materialIds);
+        return materials.stream().map(this::mapToMaterialDTO).collect(Collectors.toList());
+    }
+
+    /**
+     * Maps an InvMaterial entity to a MaterialDTO.
+     *
+     * @param material the InvMaterial entity
+     * @return the corresponding MaterialDTO
+     */
+    private MaterialDTO mapToMaterialDTO(InvMaterial material) {
+        MaterialDTO dto = new MaterialDTO();
+        dto.setMaterialId(material.getMaterialId());
+        dto.setMaterialCode(material.getMaterialCode());
+        return dto;
     }
 }
 

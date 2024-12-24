@@ -69,5 +69,10 @@ public class InvWarehouseServiceImpl implements InvWarehouseService {
         }
         return warehouse.getWarehouseId();
     }
+
+    @Override
+    public InvWarehouse getById(Long id) {
+        return invWarehouseRepository.selectByPrimary(id);
+    }
 }
 

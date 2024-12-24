@@ -47,5 +47,7 @@ public interface InvWarehouseService {
     InvWarehouse validateWarehouse(Long tenantId, Long warehouseId);
 
     Long getIdByWarehouseCode(String warehouseCode);
+
+    InvWarehouse getById(Long id);
 }
 

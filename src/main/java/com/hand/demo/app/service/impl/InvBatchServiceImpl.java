@@ -1,5 +1,6 @@
 package com.hand.demo.app.service.impl;
 
+import com.hand.demo.api.dto.BatchDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
@@ -45,6 +46,29 @@ public class InvBatchServiceImpl implements InvBatchService {
     @Override
     public InvBatch selectById(Long batchId) {
         return invBatchRepository.selectByPrimaryKey(batchId);
+    }
+
+
+    /**
+     * Converts a comma-separated string of batch IDs to a list of BatchDTOs.
+     */
+    @Override
+    public List<BatchDTO> convertToBatchDTOs(String batchIds) {
+        List<InvBatch> batches = invBatchRepository.selectByIds(batchIds);
+        return batches.stream().map(this::mapToBatchDTO).collect(Collectors.toList());
+    }
+
+    /**
+     * Maps an InvBatch entity to a BatchDTO.
+     *
+     * @param batch the InvBatch entity
+     * @return the corresponding BatchDTO
+     */
+    private BatchDTO mapToBatchDTO(InvBatch batch) {
+        BatchDTO dto = new BatchDTO();
+        dto.setBatchId(batch.getBatchId());
+        dto.setBatchCode(batch.getBatchCode());
+        return dto;
     }
 }
 

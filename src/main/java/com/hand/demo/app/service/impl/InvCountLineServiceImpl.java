@@ -19,6 +19,7 @@ import com.hand.demo.domain.entity.InvCountLine;
 import com.hand.demo.domain.repository.InvCountLineRepository;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -105,6 +106,16 @@ public class InvCountLineServiceImpl implements InvCountLineService {
 
         // Fetch the existing lines from the repository using the comma-separated IDs
         return invCountLineRepository.selectByIds(idString);
+    }
+
+    @Override
+    public List<InvCountLine> batchUpdate(List<InvCountLine> invCountLines) {
+        return invCountLineRepository.batchUpdateByPrimaryKeySelective(invCountLines);
+    }
+
+    @Override
+    public List<InvCountLine> batchInsert(List<InvCountLine> invCountLines) {
+        return invCountLineRepository.batchUpdateByPrimaryKeySelective(invCountLines);
     }
 
     private List<InvCountLineDTO> convertLinesToDTOList(List<InvCountLine> lineList) {
