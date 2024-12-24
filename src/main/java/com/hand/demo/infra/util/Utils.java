@@ -67,28 +67,20 @@ public class Utils {
         logger.info("Calling WMS API with payload: {}", jsonString);
 
         // Send the request to the interface
-
-        // TODO: Use the actual service when deployed
-        // Uncomment the following line to enable real API calls
-        // ResponsePayloadDTO response = interfaceInvokeSdk.invoke(namespace, serverCode, interfaceCode, requestPayload);
-
-        // Dummy response for testing purposes
-        ResponsePayloadDTO response = new ResponsePayloadDTO();
-        // Success example: {code=WMS-2024 12 20 16:47:56114, returnStatus=S, returnMsg=Success sync}
-        // response.setBody("{\"code\":\"WMS-2024 12 20 16:47:56114\", \"returnStatus\":\"S\", \"returnMsg\":\"Success sync\"}");
-        response.setBody("{\"code\":\"WMS-2024 12 20 16:47:56114\", \"returnStatus\":\"E\", \"returnMsg\":\"Error sync\"}");
-        // Log the response received
-        logger.info("Interface response: {} {}", response.getMessage(), response.getBody());
-
+        ResponsePayloadDTO response = interfaceInvokeSdk.invoke(namespace, serverCode, interfaceCode, requestPayload);
+        // // Success example: {code=WMS-2024 12 20 16:47:56114, returnStatus=S, returnMsg=Success sync}
         // Validate response body
         Object body = response.getBody();
         if (body == null) {
             throw new CommonException("Response body from the interface is null");
         }
 
+        logger.info("Raw response body before preprocessing: {}", body.toString());
         // Parse the response body into a map
         try {
-            return objectMapper.readValue(body.toString(), new TypeReference<Map<String, Object>>() {
+            String processedJson = preprocessResponseBody(body.toString());
+            logger.info("Transformed JSON body: {}", processedJson);
+            return objectMapper.readValue(processedJson, new TypeReference<Map<String, Object>>() {
             });
         } catch (JsonProcessingException e) {
             throw new CommonException("Failed to parse response body from the interface", e);
@@ -115,5 +107,34 @@ public class Utils {
             throw new CommonException("Unexpected error occurred", e);
         }
         return userVO;
+    }
+
+    /**
+     * Converts a non-standard response body to valid JSON format.
+     *
+     * @param rawBody the raw response body as a string
+     * @return the transformed JSON body
+     */
+    private String preprocessResponseBody(String rawBody) {
+        // Ensure the response body is not null or empty
+        if (rawBody == null || rawBody.isEmpty()) {
+            throw new CommonException("Response body is null or empty");
+        }
+
+        try {
+            // Transform non-standard response into valid JSON
+            rawBody = rawBody.trim()
+                    .replace("{", "{\"")
+                    .replace("}", "\"}")
+                    .replace("=", "\":\"")
+                    .replace(", ", "\", \"");
+
+            // Fix any trailing or duplicated quotes
+            rawBody = rawBody.replaceAll("\"\"", "\"");
+            return rawBody;
+        } catch (Exception e) {
+            logger.error("Error while preprocessing response body: {}", rawBody, e);
+            throw new CommonException("Error while preprocessing response body", e);
+        }
     }
 }
