@@ -3,6 +3,7 @@ package com.hand.demo.api.controller.v1;
 import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvCountInfoDTO;
 import com.hand.demo.api.dto.WorkflowEventDTO;
+import com.hand.demo.domain.entity.InvCountLine;
 import io.choerodon.core.domain.Page;
 import io.choerodon.core.iam.ResourceLevel;
 import io.choerodon.mybatis.pagehelper.annotation.SortDefault;
@@ -51,7 +52,12 @@ public class InvCountHeaderController extends BaseController {
     @PostMapping("/order-save")
     public ResponseEntity<InvCountInfoDTO> orderSave(@PathVariable Long organizationId,
                                                      @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
-        validList(invCountHeaders, InvCountHeader.Save.class);
+        validList(invCountHeaders, InvCountHeader.Save.class); // Invoice header validation
+        invCountHeaders.forEach(invCountHeader -> {
+            if (invCountHeader.getCountOrderLineList() != null && !invCountHeader.getCountOrderLineList().isEmpty()) {
+                validList(invCountHeader.getCountOrderLineList(), InvCountLine.class); // Invoice line validation
+            }
+        });
         SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
         return Results.success(invCountHeaderService.orderSave(invCountHeaders));
     }
@@ -112,6 +118,7 @@ public class InvCountHeaderController extends BaseController {
     @PostMapping("/order-submit")
     public ResponseEntity<InvCountInfoDTO> orderSubmit(@PathVariable Long organizationId,
                                                        @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
+        // SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
         return Results.success(invCountHeaderService.orderSubmit(invCountHeaders));
     }
 
@@ -142,7 +149,7 @@ public class InvCountHeaderController extends BaseController {
     @ApiOperation(value = "Workflow Callback")
     @PostMapping(path = "/workflow-callback")
     public ResponseEntity<InvCountHeaderDTO> workflowCallback(@PathVariable("organizationId") Long tenantId,
-                                                   @RequestBody WorkflowEventDTO workflowEventDTO) {
+                                                              @RequestBody WorkflowEventDTO workflowEventDTO) {
         return Results.success(invCountHeaderService.workflowCallback(tenantId, workflowEventDTO));
     }
 

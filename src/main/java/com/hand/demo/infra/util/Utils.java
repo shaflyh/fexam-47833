@@ -69,6 +69,7 @@ public class Utils {
         // Send the request to the interface
         ResponsePayloadDTO response = interfaceInvokeSdk.invoke(namespace, serverCode, interfaceCode, requestPayload);
         // // Success example: {code=WMS-2024 12 20 16:47:56114, returnStatus=S, returnMsg=Success sync}
+        // {failed=true, code=error.permission.instanceNotRunning, message=503 SERVICE_UNAVAILABLE "Unable to find instance for demo-21995", type=PERMISSION_SERVICE_INSTANCE, detailsMessage=The service you visited is not running or is in operation and maintenance}
         // Validate response body
         Object body = response.getBody();
         if (body == null) {
@@ -76,14 +77,15 @@ public class Utils {
         }
 
         logger.info("Raw response body before preprocessing: {}", body.toString());
+        // TODO: Try to find better parser for this
+        String processedJson = preprocessResponseBody(body.toString());
+        logger.info("Transformed JSON body: {}", processedJson);
         // Parse the response body into a map
         try {
-            String processedJson = preprocessResponseBody(body.toString());
-            logger.info("Transformed JSON body: {}", processedJson);
             return objectMapper.readValue(processedJson, new TypeReference<Map<String, Object>>() {
             });
         } catch (JsonProcessingException e) {
-            throw new CommonException("Failed to parse response body from the interface", e);
+            throw new CommonException("Failed to parse response body from the interface: " + processedJson);
         }
     }
 
@@ -116,21 +118,22 @@ public class Utils {
      * @return the transformed JSON body
      */
     private String preprocessResponseBody(String rawBody) {
-        // Ensure the response body is not null or empty
         if (rawBody == null || rawBody.isEmpty()) {
             throw new CommonException("Response body is null or empty");
         }
 
         try {
-            // Transform non-standard response into valid JSON
-            rawBody = rawBody.trim()
-                    .replace("{", "{\"")
-                    .replace("}", "\"}")
-                    .replace("=", "\":\"")
-                    .replace(", ", "\", \"");
+            // Replace '=' with '":"'
+            rawBody = rawBody.trim().replaceAll("=", "\":\"");
 
-            // Fix any trailing or duplicated quotes
-            rawBody = rawBody.replaceAll("\"\"", "\"");
+            // Add starting and ending quotes
+            rawBody = rawBody.replaceFirst("\\{", "{\"");
+            rawBody = rawBody.replaceAll(", ", "\", \"");
+            rawBody = rawBody.replaceAll("\\}$", "\"}");
+
+            // Escape inner quotes within values
+            rawBody = rawBody.replaceAll("\"([^\"]*)\"([,}])", "\\\"$1\\\"$2");
+
             return rawBody;
         } catch (Exception e) {
             logger.error("Error while preprocessing response body: {}", rawBody, e);

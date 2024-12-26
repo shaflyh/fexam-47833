@@ -1,5 +1,6 @@
 package com.hand.demo.domain.entity;
 
+import java.io.Serializable;
 import java.util.Date;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -35,7 +36,7 @@ import org.hzero.boot.platform.lov.annotation.LovValue;
 @ModifyAudit
 @JsonInclude(value = JsonInclude.Include.NON_NULL)
 @Table(name = "fexam_inv_count_header")
-public class InvCountHeader extends AuditDomain {
+public class InvCountHeader extends AuditDomain implements Serializable {
     private static final long serialVersionUID = 136455575279002850L;
 
     public static final String FIELD_COUNT_HEADER_ID = "countHeaderId";
@@ -96,15 +97,15 @@ public class InvCountHeader extends AuditDomain {
     @NotBlank(groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_BLANK)
     private String countStatus;
 
-    @LovValue(lovCode = LovConst.INV_COUNT_DIMENSION, groups = Execute.class, message = ErrorCodeConst.INPUT_INVALID)
+    @LovValue(lovCode = LovConst.INV_COUNT_DIMENSION, groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_INVALID)
     @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
     private String countDimension;
 
-    @LovValue(lovCode = LovConst.INV_COUNT_MODE, groups = Execute.class, message = ErrorCodeConst.INPUT_INVALID)
+    @LovValue(lovCode = LovConst.INV_COUNT_MODE, groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_INVALID)
     @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
     private String countMode;
 
-    @LovValue(lovCode = LovConst.INV_COUNT_TYPE, groups = Execute.class, message = ErrorCodeConst.INPUT_INVALID)
+    @LovValue(lovCode = LovConst.INV_COUNT_TYPE, groups = {Save.class, Execute.class}, message = ErrorCodeConst.INPUT_INVALID)
     @NotBlank(groups = Execute.class, message = ErrorCodeConst.INPUT_BLANK)
     private String countType;
 

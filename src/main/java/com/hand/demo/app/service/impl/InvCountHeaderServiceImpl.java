@@ -79,25 +79,24 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     * 1. Counting order save (orderSave)
+     * API 1: Counting order save (orderSave)
      */
     @Override
+    @Transactional
     public InvCountInfoDTO orderSave(List<InvCountHeaderDTO> invCountHeaders) {
         // 1. Counting order save verification method
         InvCountInfoDTO countInfo = manualSaveCheck(invCountHeaders);
         // 2. Counting order save method
-        // Save or update data if all validation success
-        List<InvCountHeaderDTO> saveResult = manualSave(countInfo.getSuccessList());
+        List<InvCountHeaderDTO> saveResult = manualSave(countInfo.getSuccessList()); // Save or update data if all validation success
         // Update the header info with data after saving
         countInfo.setSuccessList(saveResult);
-        countInfo.setTotalErrorMsg(InvConstants.Messages.ORDER_SAVE_SUCCESSFUL);
 
         // return latest data
         return countInfo;
     }
 
     /**
-     * 2. Counting order remove (orderRemove)
+     * API 2: Counting order remove (orderRemove)
      */
     @Override
     public InvCountInfoDTO orderRemove(List<InvCountHeaderDTO> invCountHeaders) {
@@ -112,7 +111,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     * 3.a. Counting order query (list)
+     * API 3.a: Counting order query (list)
      */
     @Override
     public Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeader invCountHeader) {
@@ -127,7 +126,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     * 3.b. Counting order query (detail)
+     * API 3.b: Counting order query (detail)
      */
     @Override
     public InvCountHeaderDTO selectDetail(Long countHeaderId) {
@@ -283,30 +282,29 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             Map<Long, InvCountHeader> existingHeadersMap = fetchExistingHeadersMap(updateList);
 
             // Iterate over each header that needs to be validated
-            for (InvCountHeader header : updateList) {
-                InvCountHeaderDTO headerDTO = new InvCountHeaderDTO();
-                BeanUtils.copyProperties(header, headerDTO); // Copy properties from the entity to the DTO
-                Long headerId = headerDTO.getCountHeaderId();
+            for (InvCountHeader inputHeader : updateList) {
+                InvCountHeaderDTO inputHeaderDTO = convertToDTO(inputHeader);
+                Long headerId = inputHeaderDTO.getCountHeaderId();
 
                 // Retrieve the corresponding existing header using the header ID
                 InvCountHeader existingHeader = existingHeadersMap.get(headerId);
+                // Check if header to update exist in the database
                 if (existingHeader == null) {
                     // If the existing header is not found, add an error message
-                    headerDTO.setErrorMsg("Existing header not found for ID: " + headerId);
-                    errorList.add(headerDTO);
+                    inputHeaderDTO.setErrorMsg("Existing header not found for ID: " + headerId);
+                    errorList.add(inputHeaderDTO);
                     continue; // Skip to the next header
                 }
 
                 // Validate the update operation against the existing header
-                String validationError = validateSave(headerDTO, existingHeader);
+                String validationError = validateSave(inputHeaderDTO, existingHeader);
                 if (validationError != null) {
                     // If validation fails, set the error message and add to the error list
-                    headerDTO.setErrorMsg(validationError);
-                    errorList.add(headerDTO);
+                    inputHeaderDTO.setErrorMsg(validationError);
+                    errorList.add(inputHeaderDTO);
                 } else {
                     // If validation passes, add the fetched header to the success list
-                    headerDTO.setObjectVersionNumber(existingHeader.getObjectVersionNumber());
-                    successList.add(headerDTO);
+                    successList.add(inputHeaderDTO);
                 }
             }
         }
@@ -368,16 +366,27 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             codeBuilderMap.put("customSegment", countHeader.getTenantId().toString() + "-");
             String invCountNumber = codeRuleBuilder.generateCode(InvConstants.CodeRules.INV_COUNT_NUMBER, codeBuilderMap);
             countHeader.setCountNumber(invCountNumber);
+            // Set default value
+            if (countHeader.getCountStatus() == null) {
+                countHeader.setCountStatus(InvConstants.CountStatus.DRAFT);
+            }
+            if (countHeader.getDelFlag() == null) {
+                countHeader.setDelFlag(0);
+            }
         }
         logger.info("Save and update InvCountHeaders");
         invCountHeaderRepository.batchInsertSelective(new ArrayList<>(insertList));
         invCountHeaderRepository.batchUpdateByPrimaryKeySelective(new ArrayList<>(updateList));
 
-        // Fetch again the data and return the value
-        Map<Long, InvCountHeader> latestHeadersMap = fetchExistingHeadersMap(invCountHeaders);
-        List<InvCountHeader> latestHeaders = invCountHeaderRepository.selectByIds(
-                latestHeadersMap.keySet().stream().map(String::valueOf).collect(Collectors.joining(",")));
-        // return convertToDTOList(latestHeaders);
+        // Update the line method
+        // TODO: Add update line method.
+        for (InvCountHeaderDTO header : invCountHeaders) {
+            lineRepository.batchUpdateOptional(new ArrayList<>(header.getCountOrderLineList()),
+                    InvCountLine.FIELD_UNIT_QTY,
+                    InvCountLine.FIELD_COUNTER_IDS,
+                    InvCountLine.FIELD_REMARK);
+        }
+
         return fetchExistingHeaders(invCountHeaders);
     }
 
@@ -516,25 +525,25 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * Validates save or update operation on an InvCountHeaderDTO against the existing InvCountHeader entity.
      * Returns an error message if any validation fails, otherwise returns null.
      *
-     * @param headerDTO      The DTO representing the header to be updated.
+     * @param inputHeader    The DTO representing the header to be updated.
      * @param existingHeader The existing header entity from the database.
      * @return Error message if validation fails; otherwise, null.
      */
-    private String validateSave(InvCountHeaderDTO headerDTO, InvCountHeader existingHeader) {
-        // a. Ensure the count status is not being changed
-        if (!headerDTO.getCountStatus().equals(existingHeader.getCountStatus())) {
+    private String validateSave(InvCountHeaderDTO inputHeader, InvCountHeader existingHeader) {
+        // a. Ensure the count status is not being changed (status update not allowed)
+        String status = existingHeader.getCountStatus();
+        if (!inputHeader.getCountStatus().equals(status)) {
             return InvConstants.ErrorMessages.COUNT_STATUS_CANNOT_BE_UPDATED;
         }
 
         // b. Check if the current status allows modification
-        Set<String> allowedStatuses = new HashSet<>(Arrays.asList(
+        Set<String> allowedStatusesUpdate = new HashSet<>(Arrays.asList(
                 InvConstants.CountStatus.DRAFT,
                 InvConstants.CountStatus.IN_COUNTING,
                 InvConstants.CountStatus.REJECTED,
                 InvConstants.CountStatus.WITHDRAWN
         ));
-        String currentStatus = existingHeader.getCountStatus();
-        if (!allowedStatuses.contains(currentStatus)) {
+        if (!allowedStatusesUpdate.contains(status)) {
             return String.format(InvConstants.ErrorMessages.INVALID_STATUS_UPDATE,
                     InvConstants.CountStatus.DRAFT,
                     InvConstants.CountStatus.IN_COUNTING,
@@ -548,7 +557,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         Long creatorId = existingHeader.getCreatedBy(); // Get the ID of the user who created the document
 
         // c.1. If the status is 'DRAFT', only the creator can modify the document
-        if (InvConstants.CountStatus.DRAFT.equals(currentStatus) && !creatorId.equals(currentOperator)) {
+        if (InvConstants.CountStatus.DRAFT.equals(status) && !creatorId.equals(currentOperator)) {
             return InvConstants.ErrorMessages.INVALID_DOCUMENT_CREATOR;
         }
 
@@ -557,13 +566,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                 InvConstants.CountStatus.IN_COUNTING,
                 InvConstants.CountStatus.REJECTED,
                 InvConstants.CountStatus.WITHDRAWN));
-        if (statusWithAdditionalValidation.contains(currentStatus)) {
+        if (statusWithAdditionalValidation.contains(status)) {
             // Parse supervisor and counter IDs from the existing header
             List<Long> supervisorIds = parseIds(existingHeader.getSupervisorIds());
             List<Long> counterIds = parseIds(existingHeader.getCounterIds());
 
             // Check if the warehouse is a WMS warehouse
-            boolean isWmsWarehouse = warehouseService.isWmsWarehouse(headerDTO.getWarehouseId());
+            boolean isWmsWarehouse = warehouseService.isWmsWarehouse(inputHeader.getWarehouseId());
 
             // If it's a WMS warehouse, only supervisors are allowed to operate
             if (isWmsWarehouse && !supervisorIds.contains(currentOperator)) {
@@ -579,8 +588,86 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                 return InvConstants.ErrorMessages.INVALID_USER_ROLE_FOR_OPERATION;
             }
         }
+
+        // Check for field that only draft status allows to be updated
+        // Validate if fields restricted to DRAFT status are being updated in other statuses.
+        if (!status.equals(InvConstants.CountStatus.DRAFT)) {
+            String mismatchedField = findMismatchedField(inputHeader, existingHeader);
+            if (mismatchedField != null) {
+                return String.format("Field '%s' can only be updated in draft status", mismatchedField);
+            }
+        }
+
+        // Remark can only be updated in DRAFT or IN_COUNTING status.
+        if (!status.equals(InvConstants.CountStatus.DRAFT) &&
+                !status.equals(InvConstants.CountStatus.IN_COUNTING) &&
+                !Objects.equals(inputHeader.getRemark(), existingHeader.getRemark())) {
+            return "Remark can only be updated in draft and in counting status";
+        }
+
+        // Reason can only be updated in IN_COUNTING or REJECTED status.
+        if (!status.equals(InvConstants.CountStatus.IN_COUNTING) &&
+                !status.equals(InvConstants.CountStatus.REJECTED) &&
+                !Objects.equals(inputHeader.getReason(), existingHeader.getReason())) {
+            return "Reason can only be updated in in counting and rejected status";
+        }
+
+        // TODO: Count line validation
+        // Invoice line validation
+        if (inputHeader.getCountOrderLineList() != null && !inputHeader.getCountOrderLineList().isEmpty()) {
+            // Only in counting status allows updates, and only counter can modify
+            if (!inputHeader.getCountStatus().equals(InvConstants.CountStatus.IN_COUNTING)) {
+                return "Order line list can only be updated in INCOUNTING status";
+            }
+        }
+
         // All validations passed; no error
         return null;
+    }
+
+    /**
+     * Finds the first mismatched field between the headerDTO and the existingHeader for not DRAFT status validation.
+     *
+     * @param inputHeader    The incoming data transfer object.
+     * @param existingHeader The existing header to compare against.
+     * @return The name of the first mismatched field, or null if all fields match.
+     */
+    private String findMismatchedField(InvCountHeaderDTO inputHeader, InvCountHeader existingHeader) {
+        if (!Objects.equals(inputHeader.getCompanyId(), existingHeader.getCompanyId())) {
+            return "companyId";
+        }
+        if (!Objects.equals(inputHeader.getDepartmentId(), existingHeader.getDepartmentId())) {
+            return "departmentId";
+        }
+        if (!Objects.equals(inputHeader.getWarehouseId(), existingHeader.getWarehouseId())) {
+            return "warehouseId";
+        }
+        if (!Objects.equals(inputHeader.getCountDimension(), existingHeader.getCountDimension())) {
+            return "countDimension";
+        }
+        if (!Objects.equals(inputHeader.getCountType(), existingHeader.getCountType())) {
+            return "countType";
+        }
+        if (!Objects.equals(inputHeader.getCountMode(), existingHeader.getCountMode())) {
+            return "countMode";
+        }
+        if (!Objects.equals(inputHeader.getCountTimeStr(), existingHeader.getCountTimeStr())) {
+            return "countTimeStr";
+        }
+        if (!Objects.equals(inputHeader.getCounterIds(), existingHeader.getCounterIds())) {
+            return "counterIds";
+        }
+        if (!Objects.equals(inputHeader.getSupervisorIds(), existingHeader.getSupervisorIds())) {
+            return "supervisorIds";
+        }
+        if (!Objects.equals(inputHeader.getSnapshotMaterialIds(), existingHeader.getSnapshotMaterialIds())) {
+            return "snapshotMaterialIds";
+        }
+        if (!Objects.equals(inputHeader.getSnapshotBatchIds(), existingHeader.getSnapshotBatchIds())) {
+            return "snapshotBatchIds";
+        }
+
+        return null; // No mismatched fields
     }
 
     /**

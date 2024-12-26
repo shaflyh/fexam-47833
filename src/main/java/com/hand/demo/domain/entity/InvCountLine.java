@@ -1,5 +1,6 @@
 package com.hand.demo.domain.entity;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -34,7 +35,7 @@ import lombok.Setter;
 @ModifyAudit
 @JsonInclude(value = JsonInclude.Include.NON_NULL)
 @Table(name = "fexam_inv_count_line")
-public class InvCountLine extends AuditDomain {
+public class InvCountLine extends AuditDomain implements Serializable {
     private static final long serialVersionUID = 723954242168400421L;
 
     public static final String FIELD_COUNT_LINE_ID = "countLineId";
@@ -69,6 +70,7 @@ public class InvCountLine extends AuditDomain {
 
     @Id
     @GeneratedValue
+    @NotNull
     private Long countLineId;
 
     private String attribute1;
