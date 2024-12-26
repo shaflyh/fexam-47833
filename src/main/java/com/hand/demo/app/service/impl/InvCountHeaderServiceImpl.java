@@ -381,10 +381,13 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // Update the line method
         // TODO: Add update line method.
         for (InvCountHeaderDTO header : invCountHeaders) {
-            lineRepository.batchUpdateOptional(new ArrayList<>(header.getCountOrderLineList()),
-                    InvCountLine.FIELD_UNIT_QTY,
-                    InvCountLine.FIELD_COUNTER_IDS,
-                    InvCountLine.FIELD_REMARK);
+             // Update the line if the line is exist
+            if (header.getCountOrderLineList() != null && !header.getCountOrderLineList().isEmpty()) {
+                lineRepository.batchUpdateOptional(new ArrayList<>(header.getCountOrderLineList()),
+                        InvCountLine.FIELD_UNIT_QTY,
+                        InvCountLine.FIELD_COUNTER_IDS,
+                        InvCountLine.FIELD_REMARK);
+            }
         }
 
         return fetchExistingHeaders(invCountHeaders);
@@ -612,8 +615,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             return "Reason can only be updated in in counting and rejected status";
         }
 
-        // TODO: Count line validation
         // Invoice line validation
+        // TODO: Count line validation test
         if (inputHeader.getCountOrderLineList() != null && !inputHeader.getCountOrderLineList().isEmpty()) {
             // Only in counting status allows updates, and only counter can modify
             if (!inputHeader.getCountStatus().equals(InvConstants.CountStatus.IN_COUNTING)) {
@@ -896,12 +899,12 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // Store all lines that will be generated
         List<InvCountLine> totalLines = new ArrayList<>();
-        for (InvCountHeader header : fetchedExistingHeaders) {
+        for (InvCountHeaderDTO header : fetchedExistingHeaders) {
             // 1. Update the counting order status to "INCOUNTING"
             header.setCountStatus(InvConstants.CountStatus.IN_COUNTING);
 
             // 2. Fetch valid stock data for the header
-            List<InvStock> invStocks = stockService.fetchValidStocks(convertToDTO(header));
+            List<InvStock> invStocks = stockService.fetchValidStocks(header);
 
             // 3. Group stock data based on the counting dimension
             Map<Object, List<InvStock>> groupedStocks = groupStocksByDimension(invStocks, header.getCountDimension());
@@ -1061,6 +1064,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                 } else {
                     // Not a WMS warehouse
                     syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.SKIP);
+                    syncMsgExtra.setProgramValue("");
                 }
                 // Save synchronization extras
                 extraService.saveExtras(syncStatusExtra, syncMsgExtra);
