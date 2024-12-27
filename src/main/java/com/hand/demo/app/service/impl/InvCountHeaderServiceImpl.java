@@ -86,6 +86,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     public InvCountInfoDTO orderSave(List<InvCountHeaderDTO> invCountHeaders) {
         // 1. Counting order save verification method
         InvCountInfoDTO countInfo = manualSaveCheck(invCountHeaders);
+        // throw exception if error list not empty
+        if (!countInfo.getErrorList().isEmpty()) {
+            throw new CommonException("Counting order save failed: " + countInfo.getTotalErrorMsg());
+        }
         // 2. Counting order save method
         List<InvCountHeaderDTO> saveResult = manualSave(countInfo.getSuccessList()); // Save or update data if all validation success
         // Update the header info with data after saving
@@ -114,15 +118,11 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * API 3.a: Counting order query (list)
      */
     @Override
-    public Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeader invCountHeader) {
-        // TODO: Add request DTO only for list query
-        // Convert to DTO
-        InvCountHeaderDTO invCountHeaderDTO = new InvCountHeaderDTO();
-        BeanUtils.copyProperties(invCountHeader, invCountHeaderDTO);
-        // Check if the user admin or not
-        invCountHeaderDTO.setTenantAdminFlag(utils.getUserVO().getTenantAdminFlag() != null);
+    public Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeaderDTO invCountHeader) {
+        // Add parameter for tenant admin (for data permission rule)
+        invCountHeader.setTenantAdminFlag(utils.getUserVO().getTenantAdminFlag() != null);
         // Perform pagination and sorting
-        return PageHelper.doPageAndSort(pageRequest, () -> invCountHeaderRepository.selectList(invCountHeaderDTO));
+        return PageHelper.doPageAndSort(pageRequest, () -> invCountHeaderRepository.selectList(invCountHeader));
     }
 
     /**
@@ -156,7 +156,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // 5. Counting order synchronization WMS method
         InvCountInfoDTO syncWmsResult = countSyncWms(executeResult);
-        executeInfoResult.setTotalErrorMsg(InvConstants.Messages.ORDER_EXECUTION_SUCCESSFUL);
         executeInfoResult.setSuccessList(syncWmsResult.getSuccessList());
 
         // Validation error : throw exception and rollback if error list not empty
@@ -177,6 +176,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * 3. Process valid orders with the submit method, which either starts a workflow or updates the status.
      */
     @Override
+    @Transactional
     public InvCountInfoDTO orderSubmit(List<InvCountHeaderDTO> invCountHeaders) {
         // 1. Save the headers to ensure they are valid and up-to-date
         orderSave(invCountHeaders);
@@ -312,11 +312,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // Populate the response DTO
         populateInvCountInfoDTO(checkResult, errorList, successList);
 
-        // throw exception if error list not empty
-        if (!errorList.isEmpty()) {
-            throw new CommonException("Counting order save failed: " + checkResult.getTotalErrorMsg());
-        }
-
         return checkResult;
     }
 
@@ -330,8 +325,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         Map<Long, InvCountHeader> existingHeadersMap = fetchExistingHeadersMap(invCountHeaders);
 
         for (InvCountHeader header : existingHeadersMap.values()) {
-            InvCountHeaderDTO headerDTO = new InvCountHeaderDTO();
-            BeanUtils.copyProperties(header, headerDTO); // Copy properties from the entity to the DTO
+            InvCountHeaderDTO headerDTO = convertToDTO(header); // Copy properties from the entity to the DTO
 
             // Validate the delete operation against the existing header
             String validationError = validateRemove(headerDTO);
@@ -381,7 +375,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // Update the line method
         // TODO: Add update line method.
         for (InvCountHeaderDTO header : invCountHeaders) {
-             // Update the line if the line is exist
+            // Update the line if the line is existed
             if (header.getCountOrderLineList() != null && !header.getCountOrderLineList().isEmpty()) {
                 lineRepository.batchUpdateOptional(new ArrayList<>(header.getCountOrderLineList()),
                         InvCountLine.FIELD_UNIT_QTY,
@@ -682,7 +676,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      */
     private String validateRemove(InvCountHeaderDTO headerDTO) {
         // Status verification: only allow draft status to be deleted
-        if (!headerDTO.getCountStatus().equals("DRAFT")) {
+        if (!headerDTO.getCountStatus().equals(InvConstants.CountStatus.DRAFT)) {
             return "Only document status draft allowed to be deleted";
         }
         // Validate the current user based on the document's status and user roles
@@ -765,7 +759,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         header.setIsWMSWarehouse(warehouseService.isWmsWarehouse(header.getWarehouseId()));
 
         // Retrieve and set invoice count lines
-        header.setCountOrderLineList(lineService.selectListByHeaderId(header.getCountHeaderId()));
+        header.setCountOrderLineList(lineService.selectListByHeader(header));
     }
 
     /**
@@ -1232,7 +1226,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // 3. Data integrity check for the invoice lines
         // Retrieve and set invoice count lines
-        headerDTO.setCountOrderLineList(lineService.selectListByHeaderId(headerDTO.getCountHeaderId()));
+        headerDTO.setCountOrderLineList(lineService.selectListByHeader(headerDTO));
         List<InvCountLineDTO> invCountLines = headerDTO.getCountOrderLineList();
         // Check if invoice lines is not empty
         if (invCountLines == null || invCountLines.isEmpty()) {
@@ -1386,7 +1380,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      */
     private void populateHeaderReport(InvCountHeaderDTO header) {
         // Retrieve and associate count order lines for the given header ID
-        header.setCountOrderLineList(lineService.selectListByHeaderId(header.getCountHeaderId()));
+        header.setCountOrderLineList(lineService.selectListByHeader(header));
 
         // Parse and convert counter and supervisor IDs to UserDTO lists
         header.setCounterList(convertIdsToUserDTOs(parseIds(header.getCounterIds())));

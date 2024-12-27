@@ -1,5 +1,6 @@
 package com.hand.demo.app.service;
 
+import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvCountLineDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
@@ -31,7 +32,7 @@ public interface InvCountLineService {
      */
     void saveData(List<InvCountLine> invCountLines);
 
-    List<InvCountLineDTO> selectListByHeaderId(Long headerId);
+    List<InvCountLineDTO> selectListByHeader(InvCountHeaderDTO invCountHeaderDTO);
 
 
     /**

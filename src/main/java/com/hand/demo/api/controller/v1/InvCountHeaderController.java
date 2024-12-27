@@ -78,7 +78,7 @@ public class InvCountHeaderController extends BaseController {
     @ProcessLovValue(targetField = BaseConstants.FIELD_BODY)
     @ProcessCacheValue
     @GetMapping
-    public ResponseEntity<Page<InvCountHeaderDTO>> list(InvCountHeader invCountHeader,
+    public ResponseEntity<Page<InvCountHeaderDTO>> list(InvCountHeaderDTO invCountHeader,
                                                         @PathVariable Long organizationId, @ApiIgnore
                                                         @SortDefault(value = InvCountHeader.FIELD_CREATION_DATE,
                                                                 direction = Sort.Direction.DESC)

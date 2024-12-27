@@ -41,7 +41,7 @@ public interface InvCountHeaderService {
      * @param invCountHeader 查询条件
      * @return 返回值
      */
-    Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeader invCountHeader);
+    Page<InvCountHeaderDTO> selectList(PageRequest pageRequest, InvCountHeaderDTO invCountHeader);
 
     /**
      * 3.b. Counting order query (detail)

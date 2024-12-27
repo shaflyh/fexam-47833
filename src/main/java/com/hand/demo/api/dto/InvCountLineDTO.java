@@ -17,6 +17,8 @@ public class InvCountLineDTO extends InvCountLine implements Cacheable {
     // For data permission rule
     private boolean tenantAdminFlag;
 
+    private String supervisorIds;
+
     // Additional field for reporting
     private String itemCode;
 

@@ -1,5 +1,6 @@
 package com.hand.demo.app.service.impl;
 
+import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvCountLineDTO;
 import com.hand.demo.app.service.InvBatchService;
 import com.hand.demo.app.service.InvMaterialService;
@@ -70,7 +71,8 @@ public class InvCountLineServiceImpl implements InvCountLineService {
     }
 
     @Override
-    public List<InvCountLineDTO> selectListByHeaderId(Long headerId) {
+    public List<InvCountLineDTO> selectListByHeader(InvCountHeaderDTO invCountHeaderDTO) {
+        Long headerId = invCountHeaderDTO.getCountHeaderId();
         Condition condition = new Condition(InvCountLine.class);
         // Define the criteria to filter by count_header_id
         condition.createCriteria().andEqualTo("countHeaderId", headerId);
@@ -91,6 +93,7 @@ public class InvCountLineServiceImpl implements InvCountLineService {
                 InvBatch batch = batchService.selectById(line.getBatchId());
                 line.setBatchCode(batch.getBatchCode());
             }
+            line.setSupervisorIds(invCountHeaderDTO.getSupervisorIds());
         });
 
         return invCountLineDTOS;
