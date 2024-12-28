@@ -15,7 +15,7 @@ import org.hzero.core.cache.Cacheable;
 public class InvCountLineDTO extends InvCountLine implements Cacheable {
 
     // For data permission rule
-    private boolean tenantAdminFlag;
+    private Boolean tenantAdminFlag;
 
     private String supervisorIds;
 

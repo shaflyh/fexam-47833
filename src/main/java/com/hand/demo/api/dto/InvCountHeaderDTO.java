@@ -47,7 +47,7 @@ public class InvCountHeaderDTO extends InvCountHeader implements Cacheable {
     private Boolean isWMSWarehouse;
 
     // For data permission rule
-    private boolean tenantAdminFlag;
+    private Boolean tenantAdminFlag;
 
     // For countSyncWms
     private String employeeNumber;
