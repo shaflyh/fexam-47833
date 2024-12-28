@@ -158,7 +158,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // 5. Counting order synchronization WMS method
         InvCountInfoDTO syncWmsResult = countSyncWms(executeResult);
-        executeInfoResult.setSuccessList(syncWmsResult.getSuccessList());
+        executeInfoResult.setSuccessList(syncWmsResult.getSuccessList()); // Update the success list for updated header
 
         // Validation error : throw exception and rollback if error list not empty
         if (!executeInfoResult.getErrorList().isEmpty()) {
@@ -878,52 +878,44 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * Executes the counting process for the provided headers.
      *
      * Steps:
-     * 1. Fetch and validate existing headers to ensure accurate processing.
-     * 2. Update the status of headers to "INCOUNTING".
-     * 3. Retrieve summarized stock data for each header.
-     * 4. Generate line items based on summarized stock data.
-     * 5. Persist the generated lines to the database.
-     * 6. Update header statuses in the database.
-     * 7. Convert updated headers to DTOs with attached lines for the final result.
+     * 1. Update the status of headers to "INCOUNTING".
+     * 2. Retrieve summarized stock data for each header.
+     * 3. Generate line items based on summarized stock data.
+     * 4. Persist the generated lines to the database.
+     * 5. Update header statuses in the database.
+     * 6. Convert updated headers to DTOs with attached lines for the final result.
      *
      * @param invCountHeaders List of InvCountHeader entities to process.
      * @return List of InvCountHeaderDTOs containing updated headers and associated lines.
      */
     private List<InvCountHeaderDTO> execute(List<InvCountHeaderDTO> invCountHeaders) {
-        // Step 1: Fetch and validate existing headers
-        List<InvCountHeaderDTO> existingHeaders = fetchExistingHeaders(invCountHeaders);
-
-        // Step 2: Process each header
+        // Step 1: Process each header
         List<InvCountLine> allGeneratedLines = new ArrayList<>();
-        for (InvCountHeaderDTO header : existingHeaders) {
+        for (InvCountHeaderDTO header : invCountHeaders) {
             // Update the status to "INCOUNTING"
             header.setCountStatus(InvConstants.CountStatus.IN_COUNTING);
 
-            // Step 3: Retrieve summarized stock data
+            // Step 2: Retrieve summarized stock data
             List<InvStockSummaryDTO> summarizedStocks = stockService.selectByHeader(header);
 
-            // Step 4: Generate line data
+            // Step 3: Generate line data
             List<InvCountLine> generatedLines = lineService.generateInvLines(summarizedStocks, header);
             allGeneratedLines.addAll(generatedLines);
         }
 
-        // Step 5: Persist generated lines to the database
+        // Step 4: Persist generated lines to the database
         List<InvCountLine> savedLines = lineRepository.batchInsertSelective(allGeneratedLines);
 
-        // Step 6: Update header statuses
+        // Step 5: Update header statuses
         List<InvCountHeader> updatedHeaders = invCountHeaderRepository.batchUpdateOptional(
-                new ArrayList<>(existingHeaders), InvCountHeader.FIELD_COUNT_STATUS);
+                new ArrayList<>(invCountHeaders), InvCountHeader.FIELD_COUNT_STATUS);
 
-        // Step 7: Attach lines to headers and return
-        return attachLinesToHeaders(updatedHeaders, savedLines);
+        // Step 6: Attach lines to headers and return
+        return attachLinesToHeaders(convertToDTOList(updatedHeaders), savedLines);
     }
 
     // Attach lines to their respective headers
-    private List<InvCountHeaderDTO> attachLinesToHeaders(List<InvCountHeader> headers, List<InvCountLine> lines) {
-        List<InvCountHeaderDTO> headerDTOS = headers.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-
+    private List<InvCountHeaderDTO> attachLinesToHeaders(List<InvCountHeaderDTO> headerDTOS, List<InvCountLine> lines) {
         for (InvCountHeaderDTO headerDTO : headerDTOS) {
             List<InvCountLineDTO> lineDTOS = lines.stream()
                     .filter(line -> line.getCountHeaderId().equals(headerDTO.getCountHeaderId()))
@@ -967,7 +959,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                         tenantId, countHeaderId, InvConstants.ExtraKeys.WMS_SYNC_ERROR_MESSAGE);
 
                 // Check if the warehouse is a WMS warehouse and call the WMS interface to synchronize the counting order
-                if (warehouse.getIsWmsWarehouse().equals(1)) {
+                if (warehouse.getIsWmsWarehouse().equals(1)) { // warehouse is WMS
                     // Set employee number from the current user for interface parameter
                     header.setEmployeeNumber(utils.getUserVO().getLoginName());
 
