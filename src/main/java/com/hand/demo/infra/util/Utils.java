@@ -33,60 +33,11 @@ public class Utils {
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final InterfaceInvokeSdk interfaceInvokeSdk;
     private final IamRemoteService iamRemoteService;
 
     @Autowired
-    public Utils(InterfaceInvokeSdk interfaceInvokeSdk, IamRemoteService iamRemoteService) {
-        this.interfaceInvokeSdk = interfaceInvokeSdk;
+    public Utils(IamRemoteService iamRemoteService) {
         this.iamRemoteService = iamRemoteService;
-    }
-
-    /**
-     * Calls the WMS API to push a count order.
-     *
-     * @param namespace     the namespace of the interface
-     * @param serverCode    the server code of the interface
-     * @param interfaceCode the specific interface code to invoke
-     * @param jsonString    the JSON payload to send in the request
-     * @return a map containing the response body from the interface
-     * @throws CommonException if an error occurs during the API call or response parsing
-     */
-    public Map<String, Object> callWmsApiPushCountOrder(String namespace, String serverCode, String interfaceCode, String jsonString) {
-        // Prepare headers with authorization token
-        Map<String, String> headerParamMap = new HashMap<>();
-        headerParamMap.put("Authorization", "bearer " + TokenUtils.getToken());
-
-        // Construct the request payload
-        RequestPayloadDTO requestPayload = new RequestPayloadDTO();
-        requestPayload.setPayload(jsonString);
-        requestPayload.setMediaType("application/json");
-        requestPayload.setHeaderParamMap(headerParamMap);
-
-        // Log the outgoing request
-        logger.info("Calling WMS API with payload: {}", jsonString);
-
-        // Send the request to the interface
-        ResponsePayloadDTO response = interfaceInvokeSdk.invoke(namespace, serverCode, interfaceCode, requestPayload);
-        // // Success example: {code=WMS-2024 12 20 16:47:56114, returnStatus=S, returnMsg=Success sync}
-        // {failed=true, code=error.permission.instanceNotRunning, message=503 SERVICE_UNAVAILABLE "Unable to find instance for demo-21995", type=PERMISSION_SERVICE_INSTANCE, detailsMessage=The service you visited is not running or is in operation and maintenance}
-        // Validate response body
-        Object body = response.getBody();
-        if (body == null) {
-            throw new CommonException("Response body from the interface is null");
-        }
-
-        logger.info("Raw response body before preprocessing: {}", body.toString());
-        // TODO: Try to find better parser for this
-        String processedJson = preprocessResponseBody(body.toString());
-        logger.info("Transformed JSON body: {}", processedJson);
-        // Parse the response body into a map
-        try {
-            return objectMapper.readValue(processedJson, new TypeReference<Map<String, Object>>() {
-            });
-        } catch (JsonProcessingException e) {
-            throw new CommonException("Failed to parse response body from the interface: " + processedJson);
-        }
     }
 
     public UserVO getUserVO() {
@@ -109,35 +60,5 @@ public class Utils {
             throw new CommonException("Unexpected error occurred", e);
         }
         return userVO;
-    }
-
-    /**
-     * Converts a non-standard response body to valid JSON format.
-     *
-     * @param rawBody the raw response body as a string
-     * @return the transformed JSON body
-     */
-    private String preprocessResponseBody(String rawBody) {
-        if (rawBody == null || rawBody.isEmpty()) {
-            throw new CommonException("Response body is null or empty");
-        }
-
-        try {
-            // Replace '=' with '":"'
-            rawBody = rawBody.trim().replaceAll("=", "\":\"");
-
-            // Add starting and ending quotes
-            rawBody = rawBody.replaceFirst("\\{", "{\"");
-            rawBody = rawBody.replaceAll(", ", "\", \"");
-            rawBody = rawBody.replaceAll("\\}$", "\"}");
-
-            // Escape inner quotes within values
-            rawBody = rawBody.replaceAll("\"([^\"]*)\"([,}])", "\\\"$1\\\"$2");
-
-            return rawBody;
-        } catch (Exception e) {
-            logger.error("Error while preprocessing response body: {}", rawBody, e);
-            throw new CommonException("Error while preprocessing response body", e);
-        }
     }
 }
