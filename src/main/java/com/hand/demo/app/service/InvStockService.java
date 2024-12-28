@@ -1,6 +1,7 @@
 package com.hand.demo.app.service;
 
 import com.hand.demo.api.dto.InvCountHeaderDTO;
+import com.hand.demo.api.dto.InvStockSummaryDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import com.hand.demo.domain.entity.InvStock;
@@ -32,5 +33,7 @@ public interface InvStockService {
     void saveData(List<InvStock> invStocks);
 
     List<InvStock> fetchValidStocks(InvCountHeaderDTO headerDTO);
+
+    List<InvStockSummaryDTO> selectByHeader(InvCountHeaderDTO header);
 }
 

@@ -1,6 +1,7 @@
 package com.hand.demo.app.service.impl;
 
 import com.hand.demo.api.dto.InvCountHeaderDTO;
+import com.hand.demo.api.dto.InvStockSummaryDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
@@ -55,25 +56,31 @@ public class InvStockServiceImpl implements InvStockService {
         // On hand quantity validation is not 0 and according to:
         // tenantId + companyId + departmentId + warehouseId + snapshotMaterialIds + snapshotBatchIds
         condition.createCriteria()
-                .andEqualTo("tenantId", headerDTO.getTenantId())
-                .andEqualTo("companyId", headerDTO.getCompanyId())
-                .andEqualTo("departmentId", headerDTO.getDepartmentId())
-                .andEqualTo("warehouseId", headerDTO.getWarehouseId())
-                .andGreaterThan("unitQuantity", BigDecimal.ZERO); // Ensure on-hand quantity is greater than 0
+                .andEqualTo(InvStock.FIELD_TENANT_ID, headerDTO.getTenantId())
+                .andEqualTo(InvStock.FIELD_COMPANY_ID, headerDTO.getCompanyId())
+                .andEqualTo(InvStock.FIELD_DEPARTMENT_ID, headerDTO.getDepartmentId())
+                .andEqualTo(InvStock.FIELD_WAREHOUSE_ID, headerDTO.getWarehouseId())
+                .andGreaterThan(InvStock.FIELD_AVAILABLE_QUANTITY, BigDecimal.ZERO); // Ensure on-hand quantity is greater than 0
 
-        // Add dynamic list-based conditions for snapshotMaterialIds
+        // Add dynamic list-based conditions for snapshotMaterialIds and snapshotBatchIds
         if (headerDTO.getSnapshotMaterialIds() != null && !headerDTO.getSnapshotMaterialIds().isEmpty()) {
             List<String> materialIds = Arrays.asList(headerDTO.getSnapshotMaterialIds().split(","));
-            condition.and().andIn("materialId", materialIds);
+            condition.and().andIn(InvStock.FIELD_MATERIAL_ID, materialIds);
         }
-
         if (headerDTO.getSnapshotBatchIds() != null && !headerDTO.getSnapshotBatchIds().isEmpty()) {
             List<String> batchIds = Arrays.asList(headerDTO.getSnapshotBatchIds().split(","));
-            condition.and().andIn("batchId", batchIds);
+            condition.and().andIn(InvStock.FIELD_BATCH_ID, batchIds);
         }
 
         // Query using the stock repository
         return invStockRepository.selectByCondition(condition);
     }
+
+    @Override
+    public List<InvStockSummaryDTO> selectByHeader(InvCountHeaderDTO header) {
+        return invStockRepository.selectByHeader(header);
+    }
+
+
 }
 

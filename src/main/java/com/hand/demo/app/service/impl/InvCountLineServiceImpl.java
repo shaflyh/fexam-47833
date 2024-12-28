@@ -2,13 +2,12 @@ package com.hand.demo.app.service.impl;
 
 import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvCountLineDTO;
+import com.hand.demo.api.dto.InvStockSummaryDTO;
 import com.hand.demo.app.service.InvBatchService;
 import com.hand.demo.app.service.InvMaterialService;
-import com.hand.demo.domain.entity.InvBatch;
-import com.hand.demo.domain.entity.InvMaterial;
+import com.hand.demo.domain.entity.*;
 import com.hand.demo.infra.util.Utils;
 import io.choerodon.core.domain.Page;
-import io.choerodon.core.exception.CommonException;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.hzero.mybatis.domian.Condition;
@@ -16,13 +15,10 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.hand.demo.app.service.InvCountLineService;
 import org.springframework.stereotype.Service;
-import com.hand.demo.domain.entity.InvCountLine;
 import com.hand.demo.domain.repository.InvCountLineRepository;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -119,6 +115,42 @@ public class InvCountLineServiceImpl implements InvCountLineService {
     @Override
     public List<InvCountLine> batchInsert(List<InvCountLine> invCountLines) {
         return invCountLineRepository.batchUpdateByPrimaryKeySelective(invCountLines);
+    }
+
+    /**
+     * Generates a list of InvCountLine objects by summarizing stock quantities based on grouping.
+     *
+     * @param summarizedStocks The list of InvStock items to process.
+     * @param header           The InvCountHeaderDTO containing counting information.
+     * @return A list of InvCountLine objects representing each group.
+     */
+    @Override
+    public List<InvCountLine> generateInvLines(List<InvStockSummaryDTO> summarizedStocks, InvCountHeaderDTO header) {
+        AtomicInteger lineNumber = new AtomicInteger(1);
+        return summarizedStocks.stream()
+                .map(stock -> generateInvCountLine(lineNumber.getAndIncrement(), header, stock))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Creates a single InvCountLine object based on the provided stock summary and header information.
+     *
+     * @param lineNumber Line number for the generated line.
+     * @param header     Header-level information for the counting process.
+     * @param stock      Stock summary data used to populate the line details.
+     * @return A fully populated InvCountLine object.
+     */
+    private InvCountLine generateInvCountLine(int lineNumber, InvCountHeaderDTO header, InvStockSummaryDTO stock) {
+        InvCountLine line = new InvCountLine();
+        line.setLineNumber(lineNumber);
+        line.setTenantId(header.getTenantId());
+        line.setCountHeaderId(header.getCountHeaderId());
+        line.setWarehouseId(header.getWarehouseId());
+        line.setCounterIds(header.getCounterIds());
+        line.setSnapshotUnitQty(stock.getTotalQuantity());
+        line.setMaterialId(stock.getMaterialId());
+        line.setBatchId(stock.getBatchId());
+        return line;
     }
 
     private List<InvCountLineDTO> convertLinesToDTOList(List<InvCountLine> lineList) {

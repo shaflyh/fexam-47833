@@ -1,5 +1,7 @@
 package com.hand.demo.domain.repository;
 
+import com.hand.demo.api.dto.InvCountHeaderDTO;
+import com.hand.demo.api.dto.InvStockSummaryDTO;
 import org.hzero.mybatis.base.BaseRepository;
 import com.hand.demo.domain.entity.InvStock;
 
@@ -27,4 +29,6 @@ public interface InvStockRepository extends BaseRepository<InvStock> {
      * @return 返回值
      */
     InvStock selectByPrimary(Long stockId);
+
+    List<InvStockSummaryDTO> selectByHeader(InvCountHeaderDTO header);
 }

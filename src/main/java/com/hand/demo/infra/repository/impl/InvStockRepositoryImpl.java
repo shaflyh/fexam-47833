@@ -1,6 +1,7 @@
 package com.hand.demo.infra.repository.impl;
 
-import org.apache.commons.collections.CollectionUtils;
+import com.hand.demo.api.dto.InvCountHeaderDTO;
+import com.hand.demo.api.dto.InvStockSummaryDTO;
 import org.hzero.mybatis.base.impl.BaseRepositoryImpl;
 import org.springframework.stereotype.Component;
 import com.hand.demo.domain.entity.InvStock;
@@ -37,5 +38,9 @@ public class InvStockRepositoryImpl extends BaseRepositoryImpl<InvStock> impleme
         return invStocks.get(0);
     }
 
+    @Override
+    public List<InvStockSummaryDTO> selectByHeader(InvCountHeaderDTO header) {
+        return invStockMapper.selectByHeader(header);
+    }
 }
 

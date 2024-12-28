@@ -3,7 +3,7 @@
 <mapper namespace="com.hand.demo.infra.mapper.InvStockMapper">
 
 
-    <sql id = "BaseSql">
+    <sql id="BaseSql">
         fis.stock_id,
         fis.attribute1,
         fis.attribute10,
@@ -38,9 +38,9 @@
         fis.object_version_number
     </sql>
 
-    <select id = "selectList" resultType = "com.hand.demo.domain.entity.InvStock">
+    <select id="selectList" resultType="com.hand.demo.domain.entity.InvStock">
         select
-        <include refid = "BaseSql"/>
+        <include refid="BaseSql"/>
         from fexam_inv_stock fis
         <where>
             <if test="stockId !=null">
@@ -126,5 +126,48 @@
             </if>
         </where>
     </select>
+
+    <!-- Query for Count Dimension SKU -->
+    <select id="selectByHeader" resultType="com.hand.demo.api.dto.InvStockSummaryDTO">
+        SELECT
+        SUM(fis.available_quantity) AS total_quantity,
+        fis.material_id,
+        fis.material_code,
+        <if test="countDimension == 'LOT'">
+            fis.batch_id,
+        </if>
+        fis.unit_code
+        FROM fexam_inv_stock fis
+        <where>
+            fis.tenant_id = #{tenantId}
+            AND fis.company_id = #{companyId}
+            AND fis.department_id = #{departmentId}
+            AND fis.warehouse_id = #{warehouseId}
+            AND fis.available_quantity > 0
+            -- Add snapshotMaterialIds condition if provided
+            <if test="snapshotMaterialIds != null and snapshotMaterialIds != ''">
+                AND fis.material_id IN
+                <foreach item="id" collection="snapshotMaterialIds.split(',')" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+            -- Add snapshotBatchIds condition if countDimension is LOT
+            <if test="countDimension == 'LOT' and snapshotBatchIds != null and snapshotBatchIds != ''">
+                AND fis.batch_id IN
+                <foreach item="id" collection="snapshotBatchIds.split(',')" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+        </where>
+        GROUP BY
+        fis.material_id,
+        fis.material_code,
+        <if test="countDimension == 'LOT'">
+            fis.batch_id,
+        </if>
+        fis.unit_code
+    </select>
+
+
 </mapper>
 

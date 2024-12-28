@@ -2,6 +2,7 @@ package com.hand.demo.app.service;
 
 import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvCountLineDTO;
+import com.hand.demo.api.dto.InvStockSummaryDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import com.hand.demo.domain.entity.InvCountLine;
@@ -46,5 +47,7 @@ public interface InvCountLineService {
     List<InvCountLine> batchUpdate(List<InvCountLine> invCountLines);
 
     List<InvCountLine> batchInsert(List<InvCountLine> invCountLines);
+
+    List<InvCountLine> generateInvLines(List<InvStockSummaryDTO> stocks, InvCountHeaderDTO header);
 }
 
