@@ -130,6 +130,7 @@ public class InvCountHeaderController extends BaseController {
     public ResponseEntity<InvCountHeaderDTO> countResultSync(@PathVariable Long organizationId,
                                                              @RequestBody InvCountHeaderDTO invCountHeader) {
         validObject(invCountHeader, InvCountHeader.ResultSync.class);
+        validList(invCountHeader.getCountOrderLineList(), InvCountLine.ResultSync.class);
         return Results.success(invCountHeaderService.countResultSync(invCountHeader));
     }
 

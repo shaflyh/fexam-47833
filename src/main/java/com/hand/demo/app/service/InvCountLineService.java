@@ -44,7 +44,7 @@ public interface InvCountLineService {
      */
     List<InvCountLine> fetchExistingLines(List<InvCountLine> lineList);
 
-    List<InvCountLine> batchUpdate(List<InvCountLine> invCountLines);
+    List<InvCountLine> resultSyncBatchUpdate(List<InvCountLine> invCountLines);
 
     List<InvCountLine> batchInsert(List<InvCountLine> invCountLines);
 

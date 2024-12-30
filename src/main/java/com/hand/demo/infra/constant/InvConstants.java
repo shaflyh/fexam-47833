@@ -87,6 +87,9 @@ public final class InvConstants {
         public static final String WAREHOUSE_DOES_NOT_EXIST = "Warehouse does not exist";
         public static final String UNABLE_TO_QUERY_ON_HAND_QUANTITY = "Unable to query on hand quantity data.";
         public static final String INVALID_DATE_FORMAT = "Invalid date format: %s";
+        public static final String COUNT_HEADER_NOT_FOUND = "Counting order header not found.";
+        public static final String LINE_DATA_INCONSISTENT = "The counting order line data is inconsistent with the system, please check the data.";
+        public static final String INVALID_WAREHOUSE = "The current warehouse is not a WMS warehouse, operations are not allowed";
     }
 
     public static final class Messages {
@@ -122,5 +125,10 @@ public final class InvConstants {
     public static final class ExtraKeys {
         public static final String WMS_SYNC_STATUS = "wms_sync_status";
         public static final String WMS_SYNC_ERROR_MESSAGE = "wms_sync_error_message";
+    }
+
+    public static final class SyncStatus {
+        public static final String SUCCESS = "S";
+        public static final String ERROR = "E";
     }
 }

@@ -108,13 +108,16 @@ public class InvCountLineServiceImpl implements InvCountLineService {
     }
 
     @Override
-    public List<InvCountLine> batchUpdate(List<InvCountLine> invCountLines) {
-        return invCountLineRepository.batchUpdateByPrimaryKeySelective(invCountLines);
+    public List<InvCountLine> resultSyncBatchUpdate(List<InvCountLine> invCountLines) {
+        return invCountLineRepository.batchUpdateOptional(invCountLines,
+                InvCountLine.FIELD_UNIT_QTY,
+                InvCountLine.FIELD_UNIT_DIFF_QTY,
+                InvCountLine.FIELD_REMARK);
     }
 
     @Override
     public List<InvCountLine> batchInsert(List<InvCountLine> invCountLines) {
-        return invCountLineRepository.batchUpdateByPrimaryKeySelective(invCountLines);
+        return invCountLineRepository.batchInsertSelective(invCountLines);
     }
 
     /**

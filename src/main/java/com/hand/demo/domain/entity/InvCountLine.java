@@ -70,7 +70,7 @@ public class InvCountLine extends AuditDomain implements Serializable {
 
     @Id
     @GeneratedValue
-    @NotNull
+    @NotNull(groups = {Save.class, ResultSync.class})
     private Long countLineId;
 
     private String attribute1;
@@ -108,23 +108,24 @@ public class InvCountLine extends AuditDomain implements Serializable {
     private Long batchId;
 
     @ApiModelProperty(value = "", required = true)
-    @NotNull
+    @NotNull(groups = Save.class)
     private Long countHeaderId;
 
     private String counterIds;
 
     @ApiModelProperty(value = "", required = true)
-    @NotNull
+    @NotNull(groups = Save.class)
     private Integer lineNumber;
 
     private Long materialId;
 
     private String remark;
 
+    @NotNull(groups = Save.class)
     private BigDecimal snapshotUnitQty;
 
     @ApiModelProperty(value = "", required = true)
-    @NotNull
+    @NotNull(groups = {Save.class, ResultSync.class})
     private Long tenantId;
 
     private String unitCode;
@@ -132,10 +133,15 @@ public class InvCountLine extends AuditDomain implements Serializable {
     @ApiModelProperty(value = "unit_diff_qty = unit_qty - snapshot_unit_qty")
     private BigDecimal unitDiffQty;
 
+    @NotNull(groups = ResultSync.class)
     private BigDecimal unitQty;
 
     private Long warehouseId;
 
+    public interface Save {
+    }
 
+    public interface ResultSync {
+    }
 }
 

@@ -202,29 +202,36 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * Synchronizes the counting result with the database by validating the input data,
      * checking warehouse type, verifying data consistency, and updating the line data.
      *
-     * @param invCountHeaderDTO the counting order header DTO containing input lines
+     * @param countHeaderDTO the counting order header DTO containing input lines
      * @return updated InvCountHeaderDTO with the status and updated line data
      */
     @Override
-    public InvCountHeaderDTO countResultSync(InvCountHeaderDTO invCountHeaderDTO) {
-        // Validate all inputs
-        List<InvCountLine> fetchedInvLines = new ArrayList<>();
-        if (!validateInputs(invCountHeaderDTO, fetchedInvLines)) {
-            // Validation failure already sets the error message and status in the DTO
-            return invCountHeaderDTO;
+    @Transactional
+    public InvCountHeaderDTO countResultSync(InvCountHeaderDTO countHeaderDTO) {
+        // Step 1: Validate all inputs
+        List<InvCountLine> inputLines = new ArrayList<>(countHeaderDTO.getCountOrderLineList());
+        List<InvCountLine> fetchedLines = lineService.fetchExistingLines(inputLines);
+
+        // Perform validation and handle errors
+        String validationMessage = validateResultSyncInput(countHeaderDTO, fetchedLines);
+        if (validationMessage != null) {
+            // If validation fails, set the error messages and return
+            countHeaderDTO.setErrorMsg(validationMessage);
+            countHeaderDTO.setStatus(InvConstants.SyncStatus.ERROR);
+            return countHeaderDTO;
         }
 
-        // Update the line data
-        updateLineData(fetchedInvLines, invCountHeaderDTO.getCountOrderLineList());
+        // Step 2: Update fetched lines with input data
+        updateLineData(fetchedLines, inputLines);
 
-        // Batch update the lines in the database
-        List<InvCountLine> resultLines = lineService.batchUpdate(fetchedInvLines);
+        // Step 3: Batch update the lines in the database
+        List<InvCountLine> updatedLines = lineService.resultSyncBatchUpdate(fetchedLines);
 
         // Step 4: Convert updated lines to DTO and update the header DTO
-        invCountHeaderDTO.setCountOrderLineList(convertLinesToDTOList(resultLines));
-        invCountHeaderDTO.setStatus("S"); // Set status to success
+        countHeaderDTO.setCountOrderLineList(convertLinesToDTOList(updatedLines));
+        countHeaderDTO.setStatus(InvConstants.SyncStatus.SUCCESS); // Set status to success
 
-        return invCountHeaderDTO;
+        return countHeaderDTO;
     }
 
     /**
@@ -507,7 +514,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @return List of CountHeaderId to InvCountHeader.
      */
     private List<InvCountHeaderDTO> fetchExistingHeaders(List<InvCountHeaderDTO> invCountHeaders) {
-        // TODO: Check if id may not exist.
         // Extract the set of IDs from the update list
         Set<Long> headerIds = invCountHeaders.stream().map(InvCountHeader::getCountHeaderId).collect(Collectors.toSet());
 
@@ -726,7 +732,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         InvCountHeader invCountHeader = invCountHeaderRepository.selectByPrimary(countHeaderId);
         // If the record is not found, throw error
         if (invCountHeader == null) {
-            // TODO: Add error const
             throw new CommonException("Invoice with id " + countHeaderId + " not found");
         }
         // Convert to DTO
@@ -1004,11 +1009,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                 successList.add(headerDTO);
             }
 
-            // Save synchronization extras
-            List<InvCountExtra> invCountExtras = new ArrayList<>();
-            invCountExtras.add(syncStatusExtra);
-            invCountExtras.add(syncMsgExtra);
-            extraService.saveData(invCountExtras);
+            // Save or update synchronization extras
+            extraService.saveData(Arrays.asList(syncStatusExtra, syncMsgExtra));
         }
 
         // Update headers (for WMS order code) and return results
@@ -1036,73 +1038,60 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     }
 
     /**
-     * Validates the inputs for the counting result synchronization.
+     * Validates the inputs for the counting result synchronization process.
+     * Checks the existence of the counting order header, warehouse type, and data consistency.
      *
      * @param invCountHeaderDTO the counting order header DTO containing input lines
-     * @param fetchedInvLines   a list to hold fetched lines if validation passes
-     * @return true if all validations pass; false otherwise, with error message set in the DTO
+     * @param existingLines     the list of lines fetched from the database
+     * @return a string containing the error message if validation fails; null if validation passes
      */
-    private boolean validateInputs(InvCountHeaderDTO invCountHeaderDTO, List<InvCountLine> fetchedInvLines) {
-        // Step 1: Validate input lines
-        for (InvCountLine line : invCountHeaderDTO.getCountOrderLineList()) {
-            if (line.getCountLineId() == null || line.getTenantId() == null || line.getUnitQty() == null) {
-                invCountHeaderDTO.setErrorMsg("The counting order line validation failed, please check the data");
-                invCountHeaderDTO.setStatus("E");
-                return false;
-            }
-        }
+    private String validateResultSyncInput(InvCountHeaderDTO invCountHeaderDTO, List<InvCountLine> existingLines) {
 
-        // Step 2: Retrieve the counting order header from the database
+        // Retrieve the counting order header from the database
         InvCountHeader invCountHeader = invCountHeaderRepository.selectByPrimary(invCountHeaderDTO.getCountHeaderId());
         if (invCountHeader == null) {
-            invCountHeaderDTO.setErrorMsg("Counting order header not found");
-            invCountHeaderDTO.setStatus("E");
-            return false;
+            return InvConstants.ErrorMessages.COUNT_HEADER_NOT_FOUND;
         }
 
-        // Step 3: Validate warehouse type
+        // Validate whether the warehouse is a WMS warehouse
         boolean isWmsWarehouse = warehouseService.isWmsWarehouse(invCountHeader.getWarehouseId());
         if (!isWmsWarehouse) {
-            invCountHeaderDTO.setErrorMsg("The current warehouse is not a WMS warehouse, operations are not allowed");
-            invCountHeaderDTO.setStatus("E");
-            return false;
+            return InvConstants.ErrorMessages.INVALID_WAREHOUSE;
         }
 
-        // Step 4: Fetch and validate existing line data
-        fetchedInvLines.addAll(lineService.fetchExistingLines(
-                new ArrayList<>(invCountHeaderDTO.getCountOrderLineList())
-        ));
-        if (fetchedInvLines.size() != invCountHeaderDTO.getCountOrderLineList().size()) {
-            invCountHeaderDTO.setErrorMsg("The counting order line data is inconsistent with the INV system, please check the data");
-            invCountHeaderDTO.setStatus("E");
-            return false;
+        // Validate consistency of line data (input size must match existing size)
+        if (existingLines.size() != invCountHeaderDTO.getCountOrderLineList().size()) {
+            return InvConstants.ErrorMessages.LINE_DATA_INCONSISTENT;
         }
 
-        return true; // Validation passed
+        return null; // Validation passed
     }
 
     /**
-     * Updates the fetched lines with input line data, including calculated fields such as unitDiffQty.
+     * Updates the fetched lines with data from the input lines.
+     * Matches lines by countLineId and calculates unitDiffQty (difference between input and snapshot quantities).
      *
-     * @param fetchedInvLines the list of lines fetched from the database
-     * @param inputInvLines   the list of input lines provided in the DTO
+     * @param fetchedLines the list of lines fetched from the database
+     * @param inputLines   the list of input lines provided in the DTO
      */
-    private void updateLineData(List<InvCountLine> fetchedInvLines, List<InvCountLineDTO> inputInvLines) {
-        for (InvCountLine fetchedLine : fetchedInvLines) {
-            for (InvCountLineDTO inputLine : inputInvLines) {
-                // Match input line with the corresponding fetched line
-                if (inputLine.getCountLineId().equals(fetchedLine.getCountLineId())) {
-                    // Calculate unit difference (unitDiffQty)
-                    BigDecimal unitQty = inputLine.getUnitQty(); // Get unit qty from input
-                    BigDecimal snapshotUnitQty = fetchedLine.getSnapshotUnitQty(); // Get snapshot qty from database
-                    BigDecimal unitDiffQty = unitQty.subtract(snapshotUnitQty);
+    private void updateLineData(List<InvCountLine> fetchedLines, List<InvCountLine> inputLines) {
+        // Map input lines by countLineId
+        Map<Long, InvCountLine> inputLineMap = inputLines.stream()
+                .collect(Collectors.toMap(InvCountLine::getCountLineId, line -> line));
 
-                    // Update fields
-                    fetchedLine.setUnitQty(unitQty);
-                    fetchedLine.setSnapshotUnitQty(snapshotUnitQty);
-                    fetchedLine.setUnitDiffQty(unitDiffQty);
-                    // Update the remark only if it's provided in the input
-                    fetchedLine.setRemark(inputLine.getRemark() != null ? inputLine.getRemark() : fetchedLine.getRemark());
+        // Update each fetched line with corresponding input data
+        for (InvCountLine fetchedLine : fetchedLines) {
+            InvCountLine inputLine = inputLineMap.get(fetchedLine.getCountLineId());
+            if (inputLine != null) {
+                // Calculate unit difference quantity (unitDiffQty)
+                BigDecimal unitDiffQty = inputLine.getUnitQty().subtract(fetchedLine.getSnapshotUnitQty());
+
+                // Update fetched line fields with input data
+                fetchedLine.setUnitQty(inputLine.getUnitQty());
+                fetchedLine.setUnitDiffQty(unitDiffQty);
+                // Update remark if provided
+                if (inputLine.getRemark() != null) {
+                    fetchedLine.setRemark(inputLine.getRemark());
                 }
             }
         }
