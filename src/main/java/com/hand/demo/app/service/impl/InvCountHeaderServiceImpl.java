@@ -1,5 +1,6 @@
 package com.hand.demo.app.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hand.demo.api.dto.*;
@@ -791,6 +792,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // Requery the database based on the input document ID
         List<InvCountHeaderDTO> existingHeaders = fetchExistingHeaders(invCountHeaders);
 
+        // TODO: Collect all id that need to be validate (company, depart, warehouse)
+
         // Iterate over each header that needs to be validated
         for (InvCountHeaderDTO headerDTO : existingHeaders) {
             // Validate the update operation against the existing header
@@ -844,7 +847,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // e. on hand quantity validation
         List<InvStock> invStocks = stockService.fetchValidStocks(headerDTO);
-        if (invStocks == null || invStocks.isEmpty()) {
+        if (CollUtil.isEmpty(invStocks)) {
             return InvConstants.ErrorMessages.UNABLE_TO_QUERY_ON_HAND_QUANTITY;
         }
 
@@ -945,63 +948,70 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             // Validate warehouse existence by tenantId and warehouseCode
             InvWarehouse warehouse = warehouseService.validateWarehouse(tenantId, warehouseId);
 
+            // Initialize synchronization extras
+            InvCountExtra syncStatusExtra;
+            InvCountExtra syncMsgExtra;
             // Fetch existing extras or initialize if none found
             List<InvCountExtra> fetchedExtras = extraService.fetchExtrasByHeaderId(countHeaderId);
             if (fetchedExtras.isEmpty()) {
                 // Initialize synchronization extras
-                InvCountExtra syncStatusExtra = extraService.createExtra(
-                        tenantId, countHeaderId, InvConstants.ExtraKeys.WMS_SYNC_STATUS);
-                InvCountExtra syncMsgExtra = extraService.createExtra(
-                        tenantId, countHeaderId, InvConstants.ExtraKeys.WMS_SYNC_ERROR_MESSAGE);
-
-                // Check if the warehouse is a WMS warehouse and call the WMS interface to synchronize the counting order
-                if (warehouse.getIsWmsWarehouse().equals(1)) { // warehouse is WMS
-                    // Set employee number from the current user for interface parameter
-                    headerDTO.setEmployeeNumber(utils.getUserVO().getLoginName());
-
-                    // Serialize header to JSON
-                    String headerJson = serializeHeader(headerDTO);
-
-                    // Call WMS API and handle response
-                    Map<String, Object> responseBody = wmsApiService.callWmsApiPushCountOrder(
-                            InvConstants.Api.WMS_NAMESPACE,
-                            InvConstants.Api.WMS_SERVER_CODE,
-                            InvConstants.Api.WMS_INTERFACE_CODE,
-                            headerJson);
-
-                    String responseError = wmsApiService.validateResponses(responseBody);
-
-                    // Check returnStatus and handle logic
-                    String returnStatus = (String) responseBody.get("returnStatus");
-                    if ("S".equals(returnStatus)) { // Success case
-                        syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.SUCCESS);
-                        syncMsgExtra.setProgramValue("");
-                        // Record WMS document number
-                        headerDTO.setRelatedWmsOrderCode((String) responseBody.get("code"));
-                    } else if ("E".equals(returnStatus)) { // Error case
-                        syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.ERROR);
-                        syncMsgExtra.setProgramValue((String) responseBody.get("returnMsg"));
-                    } else { // Error when can't get returnMsg (interface server is down)
-                        syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.ERROR);
-                        syncMsgExtra.setProgramValue(responseError);
-                    }
-                } else {
-                    // Not a WMS warehouse
-                    syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.SKIP);
-                    syncMsgExtra.setProgramValue("");
-                }
-
-                // Check for success validation (success message extra is empty when no error)
-                if (!syncMsgExtra.getProgramValue().isEmpty()) {
-                    headerDTO.setErrorMsg(syncMsgExtra.getProgramValue());
-                    errorList.add(headerDTO);
-                } else {
-                    successList.add(headerDTO);
-                }
-
-                // Save synchronization extras
-                extraService.saveExtras(syncStatusExtra, syncMsgExtra);
+                syncStatusExtra = extraService.createExtra(tenantId, countHeaderId, InvConstants.ExtraKeys.WMS_SYNC_STATUS);
+                syncMsgExtra = extraService.createExtra(tenantId, countHeaderId, InvConstants.ExtraKeys.WMS_SYNC_ERROR_MESSAGE);
+            } else {
+                syncStatusExtra = fetchedExtras.get(0);
+                syncMsgExtra = fetchedExtras.get(1);
             }
+
+            // Check if the warehouse is a WMS warehouse and call the WMS interface to synchronize the counting order
+            if (warehouse.getIsWmsWarehouse().equals(1)) { // warehouse is WMS
+                // Set employee number from the current user for interface parameter
+                headerDTO.setEmployeeNumber(utils.getUserVO().getLoginName());
+
+                // Serialize header to JSON
+                String headerJson = serializeHeader(headerDTO);
+
+                // Call WMS API and handle response
+                Map<String, Object> responseBody = wmsApiService.callWmsApiPushCountOrder(
+                        InvConstants.Api.WMS_NAMESPACE,
+                        InvConstants.Api.WMS_SERVER_CODE,
+                        InvConstants.Api.WMS_INTERFACE_CODE,
+                        headerJson);
+
+                String responseError = wmsApiService.validateResponses(responseBody);
+
+                // Check returnStatus and handle logic
+                String returnStatus = (String) responseBody.get("returnStatus");
+                if ("S".equals(returnStatus)) { // Success case
+                    syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.SUCCESS);
+                    syncMsgExtra.setProgramValue("");
+                    // Record WMS document number
+                    headerDTO.setRelatedWmsOrderCode((String) responseBody.get("code"));
+                } else if ("E".equals(returnStatus)) { // Error case
+                    syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.ERROR);
+                    syncMsgExtra.setProgramValue((String) responseBody.get("returnMsg"));
+                } else { // Error when can't get returnMsg (interface server is down)
+                    syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.ERROR);
+                    syncMsgExtra.setProgramValue(responseError);
+                }
+            } else {
+                // Not a WMS warehouse
+                syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.SKIP);
+                syncMsgExtra.setProgramValue("");
+            }
+
+            // Check for success validation (success message extra is empty when no error)
+            if (!syncMsgExtra.getProgramValue().isEmpty()) {
+                headerDTO.setErrorMsg(syncMsgExtra.getProgramValue());
+                errorList.add(headerDTO);
+            } else {
+                successList.add(headerDTO);
+            }
+
+            // Save synchronization extras
+            List<InvCountExtra> invCountExtras = new ArrayList<>();
+            invCountExtras.add(syncStatusExtra);
+            invCountExtras.add(syncMsgExtra);
+            extraService.saveData(invCountExtras);
         }
 
         // Update headers (for WMS order code) and return results
