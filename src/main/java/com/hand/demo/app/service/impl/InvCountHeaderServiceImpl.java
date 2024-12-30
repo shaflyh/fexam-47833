@@ -377,7 +377,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         invCountHeaderRepository.batchUpdateByPrimaryKeySelective(new ArrayList<>(updateList));
 
         // Update the line method
-        // TODO: Add update line method.
         for (InvCountHeaderDTO header : invCountHeaders) {
             // Update the line if the line is existed
             if (header.getCountOrderLineList() != null && !header.getCountOrderLineList().isEmpty()) {
@@ -484,7 +483,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @return Map of CountHeaderId to InvCountHeader.
      */
     private Map<Long, InvCountHeader> fetchExistingHeadersMap(List<InvCountHeaderDTO> invCountHeaders) {
-        // TODO: Check if id may not exist.
         // Extract the set of IDs from the update list
         Set<Long> headerIds = invCountHeaders.stream().map(InvCountHeader::getCountHeaderId).collect(Collectors.toSet());
 
@@ -614,8 +612,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }
 
         // Invoice line validation
-        // TODO: Count line validation test
-        if (inputHeader.getCountOrderLineList() != null && !inputHeader.getCountOrderLineList().isEmpty()) {
+        if (CollUtil.isNotEmpty(inputHeader.getCountOrderLineList())) {
             // Only in counting status allows updates, and only counter can modify
             if (!inputHeader.getCountStatus().equals(InvConstants.CountStatus.IN_COUNTING)) {
                 return "Order line list can only be updated in INCOUNTING status";
@@ -792,7 +789,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // Requery the database based on the input document ID
         List<InvCountHeaderDTO> existingHeaders = fetchExistingHeaders(invCountHeaders);
 
-        // TODO: Collect all id that need to be validate (company, depart, warehouse)
+        // TODO: Collect all id that need to be validate (company, depart, warehouse) and do batch validation
 
         // Iterate over each header that needs to be validated
         for (InvCountHeaderDTO headerDTO : existingHeaders) {
