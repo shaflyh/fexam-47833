@@ -1,6 +1,5 @@
 package com.hand.demo.app.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvStockSummaryDTO;
 import io.choerodon.core.domain.Page;
@@ -8,6 +7,7 @@ import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
 import org.apache.commons.lang.StringUtils;
 import org.hzero.mybatis.domian.Condition;
+import org.hzero.mybatis.util.Sqls;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.hand.demo.app.service.InvStockService;
 import org.springframework.stereotype.Service;
@@ -16,6 +16,7 @@ import com.hand.demo.domain.repository.InvStockRepository;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,30 +53,37 @@ public class InvStockServiceImpl implements InvStockService {
     @Override
     public List<InvStock> fetchValidStocks(InvCountHeaderDTO headerDTO) {
         // Create a condition for the InvStock entity
-        Condition condition = new Condition(InvStock.class);
+        // Pre-process dynamic conditions
+        List<String> materialIds = StringUtils.isNotBlank(headerDTO.getSnapshotMaterialIds())
+                ? Arrays.asList(headerDTO.getSnapshotMaterialIds().split(","))
+                : Collections.emptyList();
+        List<String> batchIds = StringUtils.isNotBlank(headerDTO.getSnapshotBatchIds())
+                ? Arrays.asList(headerDTO.getSnapshotBatchIds().split(","))
+                : Collections.emptyList();
 
-        // Build the condition
-        // On hand quantity validation is not 0 and according to:
+        // Build the condition dynamically according to:
         // tenantId + companyId + departmentId + warehouseId + snapshotMaterialIds + snapshotBatchIds
-        condition.createCriteria()
+        Sqls sqls = Sqls.custom()
                 .andEqualTo(InvStock.FIELD_TENANT_ID, headerDTO.getTenantId())
                 .andEqualTo(InvStock.FIELD_COMPANY_ID, headerDTO.getCompanyId())
                 .andEqualTo(InvStock.FIELD_DEPARTMENT_ID, headerDTO.getDepartmentId())
                 .andEqualTo(InvStock.FIELD_WAREHOUSE_ID, headerDTO.getWarehouseId())
-                .andGreaterThan(InvStock.FIELD_AVAILABLE_QUANTITY, BigDecimal.ZERO); // Ensure on-hand quantity is greater than 0
+                .andGreaterThan(InvStock.FIELD_AVAILABLE_QUANTITY, BigDecimal.ZERO);
 
-        // Add dynamic list-based conditions for snapshotMaterialIds and snapshotBatchIds
-        if (StringUtils.isNotBlank(headerDTO.getSnapshotMaterialIds())) {
-            List<String> materialIds = Arrays.asList(headerDTO.getSnapshotMaterialIds().split(","));
-            condition.and().andIn(InvStock.FIELD_MATERIAL_ID, materialIds);
-        }
-        if (StringUtils.isNotBlank(headerDTO.getSnapshotBatchIds())) {
-            List<String> batchIds = Arrays.asList(headerDTO.getSnapshotBatchIds().split(","));
-            condition.and().andIn(InvStock.FIELD_BATCH_ID, batchIds);
+        if (!materialIds.isEmpty()) {
+            sqls.andIn(InvStock.FIELD_MATERIAL_ID, materialIds);
         }
 
-        // Query using the stock repository
-        return invStockRepository.selectByCondition(condition);
+        if (!batchIds.isEmpty()) {
+            sqls.andIn(InvStock.FIELD_BATCH_ID, batchIds);
+        }
+
+        // Query using the repository
+        return invStockRepository.selectByCondition(
+                Condition.builder(InvStock.class)
+                        .andWhere(sqls)
+                        .build()
+        );
     }
 
     @Override
