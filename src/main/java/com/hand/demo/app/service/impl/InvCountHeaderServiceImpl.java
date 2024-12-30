@@ -152,20 +152,22 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // 3. Counting order execute verification method
         InvCountInfoDTO executeInfoResult = executeCheck(saveResult);
+        // Validation error : throw exception and rollback if error list not empty
+        if (!executeInfoResult.getErrorList().isEmpty()) {
+            throw new CommonException(InvConstants.ErrorMessages.ORDER_EXECUTION_FAILED + executeInfoResult.getTotalErrorMsg());
+        }
 
         // 4. Counting order execute method
         List<InvCountHeaderDTO> executeResult = execute(executeInfoResult.getSuccessList());
 
         // 5. Counting order synchronization WMS method
         InvCountInfoDTO syncWmsResult = countSyncWms(executeResult);
-        executeInfoResult.setSuccessList(syncWmsResult.getSuccessList()); // Update the success list for updated header
-
         // Validation error : throw exception and rollback if error list not empty
-        if (!executeInfoResult.getErrorList().isEmpty()) {
-            throw new CommonException(InvConstants.ErrorMessages.ORDER_EXECUTION_FAILED, executeInfoResult.getTotalErrorMsg());
+        if (!syncWmsResult.getErrorList().isEmpty()) {
+            throw new CommonException(InvConstants.ErrorMessages.ORDER_EXECUTION_FAILED + syncWmsResult.getTotalErrorMsg());
         }
 
-        return executeInfoResult;
+        return syncWmsResult;
     }
 
     /**
@@ -855,19 +857,18 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // Updates the countTimeStr field of a HeaderDTO object by formatting it based
         // on the countType field. If the countType is "MONTH", the time is formatted
         // as "yyyy-MM". If the countType is "YEAR", it is formatted as "yyyy".
-        // TODO: Should we move this to save method(?)
-        String limitFormat = headerDTO.getCountType().equals("MONTH") ?
+        // TODO: Should we just move this into the save check(?)
+        String expectedFormat = headerDTO.getCountType().equals("MONTH") ?
                 InvConstants.Validation.COUNT_TIME_FORMAT_MONTH :
                 InvConstants.Validation.COUNT_TIME_FORMAT_YEAR;
-        String time = headerDTO.getCountTimeStr();
+
         try {
-            // Parse the input time string
-            LocalDateTime dateTime = LocalDateTime.parse(time, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-            // Format the time string based on the limitFormat
-            String formattedTime = dateTime.format(DateTimeFormatter.ofPattern(limitFormat));
-            headerDTO.setCountTimeStr(formattedTime);
+            // Attempt to parse the countTimeStr with the expected format
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(expectedFormat);
+            formatter.parse(headerDTO.getCountTimeStr());
         } catch (DateTimeParseException e) {
-            throw new CommonException(String.format(InvConstants.ErrorMessages.INVALID_DATE_FORMAT, time));
+            // Catch and return the error if it different from expected format
+            return String.format(InvConstants.ErrorMessages.INVALID_DATE_FORMAT, headerDTO.getCountTimeStr());
         }
 
         // All validations passed; no error
@@ -876,7 +877,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
     /**
      * Executes the counting process for the provided headers.
-     *
+     * <p>
      * Steps:
      * 1. Update the status of headers to "INCOUNTING".
      * 2. Retrieve summarized stock data for each header.
@@ -940,11 +941,16 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @throws CommonException if validation or API calls fail.
      */
     public InvCountInfoDTO countSyncWms(List<InvCountHeaderDTO> invCountHeaders) {
+        // Initialize the response DTO
+        InvCountInfoDTO checkResult = new InvCountInfoDTO();
+        List<InvCountHeaderDTO> errorList = new ArrayList<>();
+        List<InvCountHeaderDTO> successList = new ArrayList<>();
+
         // Iterate over each counting header to process synchronization
-        for (InvCountHeaderDTO header : invCountHeaders) {
-            Long tenantId = header.getTenantId();
-            Long warehouseId = header.getWarehouseId();
-            Long countHeaderId = header.getCountHeaderId();
+        for (InvCountHeaderDTO headerDTO : invCountHeaders) {
+            Long tenantId = headerDTO.getTenantId();
+            Long warehouseId = headerDTO.getWarehouseId();
+            Long countHeaderId = headerDTO.getCountHeaderId();
 
             // Validate warehouse existence by tenantId and warehouseCode
             InvWarehouse warehouse = warehouseService.validateWarehouse(tenantId, warehouseId);
@@ -961,10 +967,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                 // Check if the warehouse is a WMS warehouse and call the WMS interface to synchronize the counting order
                 if (warehouse.getIsWmsWarehouse().equals(1)) { // warehouse is WMS
                     // Set employee number from the current user for interface parameter
-                    header.setEmployeeNumber(utils.getUserVO().getLoginName());
+                    headerDTO.setEmployeeNumber(utils.getUserVO().getLoginName());
 
                     // Serialize header to JSON
-                    String headerJson = serializeHeader(header);
+                    String headerJson = serializeHeader(headerDTO);
 
                     // Call WMS API and handle response
                     Map<String, Object> responseBody = wmsApiService.callWmsApiPushCountOrder(
@@ -973,22 +979,36 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                             InvConstants.Api.WMS_INTERFACE_CODE,
                             headerJson);
 
+                    String responseError = wmsApiService.validateResponses(responseBody);
+
                     // Check returnStatus and handle logic
                     String returnStatus = (String) responseBody.get("returnStatus");
                     if ("S".equals(returnStatus)) { // Success case
                         syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.SUCCESS);
                         syncMsgExtra.setProgramValue("");
                         // Record WMS document number
-                        header.setRelatedWmsOrderCode((String) responseBody.get("code"));
-                    } else { // Error case
+                        headerDTO.setRelatedWmsOrderCode((String) responseBody.get("code"));
+                    } else if ("E".equals(returnStatus)) { // Error case
                         syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.ERROR);
                         syncMsgExtra.setProgramValue((String) responseBody.get("returnMsg"));
+                    } else { // Error when can't get returnMsg (interface server is down)
+                        syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.ERROR);
+                        syncMsgExtra.setProgramValue(responseError);
                     }
                 } else {
                     // Not a WMS warehouse
                     syncStatusExtra.setProgramValue(InvConstants.WmsSyncStatus.SKIP);
                     syncMsgExtra.setProgramValue("");
                 }
+
+                // Check for success validation (success message extra is empty when no error)
+                if (!syncMsgExtra.getProgramValue().isEmpty()) {
+                    headerDTO.setErrorMsg(syncMsgExtra.getProgramValue());
+                    errorList.add(headerDTO);
+                } else {
+                    successList.add(headerDTO);
+                }
+
                 // Save synchronization extras
                 extraService.saveExtras(syncStatusExtra, syncMsgExtra);
             }
@@ -998,9 +1018,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         List<InvCountHeader> updatedHeaders = invCountHeaderRepository.batchUpdateOptional(
                 new ArrayList<>(invCountHeaders), InvCountHeader.FIELD_RELATED_WMS_ORDER_CODE);
 
-        InvCountInfoDTO result = new InvCountInfoDTO();
-        result.setSuccessList(convertToDTOList(updatedHeaders));
-        return result;
+        populateInvCountInfoDTO(checkResult, errorList, successList);
+        return checkResult;
     }
 
 

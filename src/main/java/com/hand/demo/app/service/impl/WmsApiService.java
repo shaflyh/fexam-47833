@@ -59,11 +59,7 @@ public class WmsApiService {
         String payload = response.getPayload();
         logger.info("Interface response payload: {}", payload);
 
-        Map<String, Object> responsePayload = parseResponsePayload(payload);
-
-        validateResponse(responsePayload);
-
-        return responsePayload;
+        return parseResponsePayload(payload);
     }
 
     /**
@@ -74,7 +70,7 @@ public class WmsApiService {
      */
     private Map<String, String> createAuthorizationHeader() {
         String token = TokenUtils.getToken();
-        if (token == null || token.trim().isEmpty()) {
+        if (token == null || token.isEmpty()) {
             throw new CommonException("Authorization token is missing");
         }
 
@@ -131,5 +127,21 @@ public class WmsApiService {
             logger.error("WMS API returned failure: {}", message);
             throw new CommonException(message);
         }
+    }
+
+    /**
+     * Validates the response payload for failure indications.
+     *
+     * @param responsePayload the response payload map
+     * @throws CommonException if the response indicates a failure
+     */
+    public String validateResponses(Map<String, Object> responsePayload) {
+        Object failedObj = responsePayload.get("failed");
+        if (Boolean.TRUE.equals(failedObj)) {
+            String message = (String) responsePayload.getOrDefault("message", "Unknown error from WMS API");
+            logger.error("WMS API returned failure: {}", message);
+            return message;
+        }
+        return null;
     }
 }

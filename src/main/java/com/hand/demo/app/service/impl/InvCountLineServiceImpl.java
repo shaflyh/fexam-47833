@@ -148,6 +148,7 @@ public class InvCountLineServiceImpl implements InvCountLineService {
         line.setWarehouseId(header.getWarehouseId());
         line.setCounterIds(header.getCounterIds());
         line.setSnapshotUnitQty(stock.getTotalQuantity());
+        line.setUnitCode(stock.getUnitCode());
         line.setMaterialId(stock.getMaterialId());
         line.setBatchId(stock.getBatchId());
         return line;

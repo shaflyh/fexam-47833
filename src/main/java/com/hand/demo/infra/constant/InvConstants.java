@@ -79,7 +79,7 @@ public final class InvConstants {
         public static final String INVALID_STATUS_UPDATE = "Only '%s', '%s', '%s', and '%s' statuses can be modified";
         public static final String WMS_SUPERVISOR_ONLY = "The current warehouse is a WMS warehouse, and only the supervisor is allowed to operate";
         public static final String INVALID_USER_ROLE_FOR_OPERATION = "Only the document creator, counter, or supervisor can modify the document for the status of in counting, rejected, or withdrawn.";
-        public static final String ORDER_EXECUTION_FAILED = "Counting order execution failed: %s";
+        public static final String ORDER_EXECUTION_FAILED = "Counting order execution failed: ";
         public static final String ONLY_DRAFT_STATUS_EXECUTE = "Only draft status can execute";
         public static final String ONLY_DOCUMENT_CREATOR_EXECUTE = "Only the document creator can execute";
         public static final String COMPANY_DOES_NOT_EXIST = "Company does not exist";
