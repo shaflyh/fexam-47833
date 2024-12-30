@@ -54,12 +54,18 @@ public class WmsApiService {
 
         logger.info("Calling WMS API with payload: {}", jsonString);
 
-        ResponsePayloadDTO response = interfaceInvokeSdk.invoke(namespace, serverCode, interfaceCode, requestPayload);
+        try {
+            // Invoke the WMS API
+            ResponsePayloadDTO response = interfaceInvokeSdk.invoke(namespace, serverCode, interfaceCode, requestPayload);
+            String payload = response.getPayload();
+            logger.info("Interface response payload: {}", payload);
 
-        String payload = response.getPayload();
-        logger.info("Interface response payload: {}", payload);
-
-        return parseResponsePayload(payload);
+            return parseResponsePayload(payload);
+        } catch (Exception e) {
+            // Catch all exceptions, log them, and wrap in CommonException
+            logger.error("Error during WMS API call or response processing", e);
+            throw new CommonException("An unexpected error occurred while calling the WMS API: " + e.getMessage(), e);
+        }
     }
 
     /**
