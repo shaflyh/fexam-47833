@@ -23,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
@@ -152,7 +151,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // 3. Counting order execute verification method
         InvCountInfoDTO executeInfoResult = executeCheck(saveResult);
-        // Validation error : throw exception and rollback if error list not empty
+        // Validation error
         if (!executeInfoResult.getErrorList().isEmpty()) {
             throw new CommonException(InvConstants.ErrorMessages.ORDER_EXECUTION_FAILED + executeInfoResult.getTotalErrorMsg());
         }
@@ -162,7 +161,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // 5. Counting order synchronization WMS method
         InvCountInfoDTO syncWmsResult = countSyncWms(executeResult);
-        // Validation error : throw exception and rollback if error list not empty
+        // Throw exception and rollback if error list not empty
         if (!syncWmsResult.getErrorList().isEmpty()) {
             throw new CommonException(InvConstants.ErrorMessages.ORDER_EXECUTION_FAILED + syncWmsResult.getTotalErrorMsg());
         }
@@ -806,12 +805,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             }
         }
 
-        // Update the count time string
-        List<InvCountHeader> updatedHeaders = invCountHeaderRepository.batchUpdateOptional(
-                new ArrayList<>(successList), InvCountHeader.FIELD_COUNT_TIME_STR);
-
         // Populate the response DTO
-        populateInvCountInfoDTO(checkResult, errorList, convertToDTOList(updatedHeaders));
+        populateInvCountInfoDTO(checkResult, errorList, successList);
 
         return checkResult;
     }
@@ -835,7 +830,6 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }
 
         // c. value set validation
-        // TODO: Ask mr zeki if we need to validate the value set again. Because we already add the lov annotations
 
         // d. company, department, warehouse validation
         if (companyService.getById(headerDTO.getCompanyId()) == null) {
@@ -854,14 +848,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             return InvConstants.ErrorMessages.UNABLE_TO_QUERY_ON_HAND_QUANTITY;
         }
 
-        // Updates the countTimeStr field of a HeaderDTO object by formatting it based
-        // on the countType field. If the countType is "MONTH", the time is formatted
-        // as "yyyy-MM". If the countType is "YEAR", it is formatted as "yyyy".
-        // TODO: Should we just move this into the save check(?)
+        // Validate the countTimeStr field of a HeaderDTO object by formatting it based on the countType field.
         String expectedFormat = headerDTO.getCountType().equals("MONTH") ?
                 InvConstants.Validation.COUNT_TIME_FORMAT_MONTH :
                 InvConstants.Validation.COUNT_TIME_FORMAT_YEAR;
-
         try {
             // Attempt to parse the countTimeStr with the expected format
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern(expectedFormat);
@@ -897,7 +887,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
             header.setCountStatus(InvConstants.CountStatus.IN_COUNTING);
 
             // Step 2: Retrieve summarized stock data
-            List<InvStockSummaryDTO> summarizedStocks = stockService.selectByHeader(header);
+            List<InvStockSummaryDTO> summarizedStocks = stockService.selectStockSummary(header);
 
             // Step 3: Generate line data
             List<InvCountLine> generatedLines = lineService.generateInvLines(summarizedStocks, header);

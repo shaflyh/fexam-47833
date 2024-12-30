@@ -77,8 +77,8 @@ public class InvStockServiceImpl implements InvStockService {
     }
 
     @Override
-    public List<InvStockSummaryDTO> selectByHeader(InvCountHeaderDTO header) {
-        return invStockRepository.selectByHeader(header);
+    public List<InvStockSummaryDTO> selectStockSummary(InvCountHeaderDTO header) {
+        return invStockRepository.selectStockSummary(header);
     }
 
 

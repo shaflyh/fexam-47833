@@ -39,8 +39,8 @@ public class InvStockRepositoryImpl extends BaseRepositoryImpl<InvStock> impleme
     }
 
     @Override
-    public List<InvStockSummaryDTO> selectByHeader(InvCountHeaderDTO header) {
-        return invStockMapper.selectByHeader(header);
+    public List<InvStockSummaryDTO> selectStockSummary(InvCountHeaderDTO header) {
+        return invStockMapper.selectStockSummary(header);
     }
 }
 

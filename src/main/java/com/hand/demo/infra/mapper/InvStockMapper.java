@@ -22,6 +22,6 @@ public interface InvStockMapper extends BaseMapper<InvStock> {
      */
     List<InvStock> selectList(InvStock invStock);
 
-    List<InvStockSummaryDTO> selectByHeader(InvCountHeaderDTO headerDTO);
+    List<InvStockSummaryDTO> selectStockSummary(InvCountHeaderDTO headerDTO);
 }
 

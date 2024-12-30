@@ -120,22 +120,8 @@ public class WmsApiService {
      * @param responsePayload the response payload map
      * @throws CommonException if the response indicates a failure
      */
-    private void validateResponse(Map<String, Object> responsePayload) {
-        Object failedObj = responsePayload.get("failed");
-        if (Boolean.TRUE.equals(failedObj)) {
-            String message = (String) responsePayload.getOrDefault("message", "Unknown error from WMS API");
-            logger.error("WMS API returned failure: {}", message);
-            throw new CommonException(message);
-        }
-    }
-
-    /**
-     * Validates the response payload for failure indications.
-     *
-     * @param responsePayload the response payload map
-     * @throws CommonException if the response indicates a failure
-     */
     public String validateResponses(Map<String, Object> responsePayload) {
+        // Error example: {"failed":true,"code":"error.permission.instanceNotRunning","message":"503 SERVICE_UNAVAILABLE \"Unable to find instance for demo-21995\"","type":"PERMISSION_SERVICE_INSTANCE","detailsMessage":"您访问的服务未运行或服务正在运维中"}
         Object failedObj = responsePayload.get("failed");
         if (Boolean.TRUE.equals(failedObj)) {
             String message = (String) responsePayload.getOrDefault("message", "Unknown error from WMS API");

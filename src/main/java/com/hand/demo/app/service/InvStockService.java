@@ -34,6 +34,6 @@ public interface InvStockService {
 
     List<InvStock> fetchValidStocks(InvCountHeaderDTO headerDTO);
 
-    List<InvStockSummaryDTO> selectByHeader(InvCountHeaderDTO header);
+    List<InvStockSummaryDTO> selectStockSummary(InvCountHeaderDTO header);
 }
 

@@ -128,7 +128,7 @@
     </select>
 
     <!-- Query for Count Dimension SKU -->
-    <select id="selectByHeader" resultType="com.hand.demo.api.dto.InvStockSummaryDTO">
+    <select id="selectStockSummary" resultType="com.hand.demo.api.dto.InvStockSummaryDTO">
         SELECT
         SUM(fis.available_quantity) AS total_quantity,
         fis.material_id,
