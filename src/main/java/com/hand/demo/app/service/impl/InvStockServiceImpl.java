@@ -1,10 +1,12 @@
 package com.hand.demo.app.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvStockSummaryDTO;
 import io.choerodon.core.domain.Page;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
+import org.apache.commons.lang.StringUtils;
 import org.hzero.mybatis.domian.Condition;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.hand.demo.app.service.InvStockService;
@@ -63,11 +65,11 @@ public class InvStockServiceImpl implements InvStockService {
                 .andGreaterThan(InvStock.FIELD_AVAILABLE_QUANTITY, BigDecimal.ZERO); // Ensure on-hand quantity is greater than 0
 
         // Add dynamic list-based conditions for snapshotMaterialIds and snapshotBatchIds
-        if (headerDTO.getSnapshotMaterialIds() != null && !headerDTO.getSnapshotMaterialIds().isEmpty()) {
+        if (StringUtils.isNotBlank(headerDTO.getSnapshotMaterialIds())) {
             List<String> materialIds = Arrays.asList(headerDTO.getSnapshotMaterialIds().split(","));
             condition.and().andIn(InvStock.FIELD_MATERIAL_ID, materialIds);
         }
-        if (headerDTO.getSnapshotBatchIds() != null && !headerDTO.getSnapshotBatchIds().isEmpty()) {
+        if (StringUtils.isNotBlank(headerDTO.getSnapshotBatchIds())) {
             List<String> batchIds = Arrays.asList(headerDTO.getSnapshotBatchIds().split(","));
             condition.and().andIn(InvStock.FIELD_BATCH_ID, batchIds);
         }

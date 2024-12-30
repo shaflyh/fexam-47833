@@ -141,7 +141,9 @@
         <where>
             fis.tenant_id = #{tenantId}
             AND fis.company_id = #{companyId}
-            AND fis.department_id = #{departmentId}
+            <if test="departmentId != null">
+                AND fis.department_id = #{departmentId}
+            </if>
             AND fis.warehouse_id = #{warehouseId}
             AND fis.available_quantity > 0
             -- Add snapshotMaterialIds condition if provided
@@ -152,7 +154,7 @@
                 </foreach>
             </if>
             -- Add snapshotBatchIds condition if countDimension is LOT
-            <if test="countDimension == 'LOT' and snapshotBatchIds != null and snapshotBatchIds != ''">
+            <if test="snapshotBatchIds != null and snapshotBatchIds != ''">
                 AND fis.batch_id IN
                 <foreach item="id" collection="snapshotBatchIds.split(',')" open="(" separator="," close=")">
                     #{id}
