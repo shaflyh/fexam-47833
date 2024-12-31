@@ -14,6 +14,7 @@ import io.choerodon.core.exception.CommonException;
 import io.choerodon.core.oauth.DetailsHelper;
 import io.choerodon.mybatis.pagehelper.PageHelper;
 import io.choerodon.mybatis.pagehelper.domain.PageRequest;
+import org.apache.commons.lang.StringUtils;
 import org.hzero.boot.platform.code.builder.CodeRuleBuilder;
 import org.hzero.boot.platform.profile.ProfileClient;
 import org.slf4j.Logger;
@@ -183,10 +184,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     @Transactional
     public InvCountInfoDTO orderSubmit(List<InvCountHeaderDTO> invCountHeaders) {
         // 1. Save the headers to ensure they are valid and up-to-date
-        orderSave(invCountHeaders);
+        List<InvCountHeaderDTO> saveResult = orderSave(invCountHeaders).getSuccessList();
 
         // 2. Perform validation checks on the headers
-        InvCountInfoDTO checkResult = submitCheck(invCountHeaders);
+        InvCountInfoDTO checkResult = submitCheck(saveResult);
 
         // 3. Submit headers that passed validation
         List<InvCountHeaderDTO> submitResults = submit(checkResult.getSuccessList());
@@ -210,7 +211,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     public InvCountHeaderDTO countResultSync(InvCountHeaderDTO countHeaderDTO) {
         // Step 1: Validate all inputs
         List<InvCountLine> inputLines = new ArrayList<>(countHeaderDTO.getCountOrderLineList());
-        List<InvCountLine> fetchedLines = lineService.fetchExistingLines(inputLines);
+        // TODO: The fetched data should be from the header id
+        // List<InvCountLine> fetchedLines = lineService.fetchExistingLines(inputLines);
+        List<InvCountLineDTO> fetchedLines = lineService.selectListByHeader(countHeaderDTO);
+
 
         // Perform validation and handle errors
         String validationMessage = validateResultSyncInput(countHeaderDTO, fetchedLines);
@@ -225,7 +229,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         updateLineData(fetchedLines, inputLines);
 
         // Step 3: Batch update the lines in the database
-        List<InvCountLine> updatedLines = lineService.resultSyncBatchUpdate(fetchedLines);
+        List<InvCountLine> updatedLines = lineService.resultSyncBatchUpdate(new ArrayList<>(fetchedLines));
 
         // Step 4: Convert updated lines to DTO and update the header DTO
         countHeaderDTO.setCountOrderLineList(convertLinesToDTOList(updatedLines));
@@ -704,22 +708,16 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      */
     private List<Long> parseIds(String ids) {
         // Check if the input string is null or empty
-        if (ids == null || ids.trim().isEmpty()) {
-            return Collections.emptyList(); // Return an empty list if there's nothing to parse
+        if (StringUtils.isBlank(ids)) {
+            return Collections.emptyList();
         }
 
-        // Split the string by commas, trim whitespace, parse each segment to Long, and collect into a list
         List<Long> idList = new ArrayList<>();
-        for (String idStr : ids.split(",")) {
-            String trimmed = idStr.trim();
-            if (!trimmed.isEmpty()) { // Ensure the segment is not empty after trimming
-                try {
-                    Long id = Long.parseLong(trimmed); // Parse the string to a Long
-                    idList.add(id); // Add the parsed ID to the list
-                } catch (NumberFormatException e) {
-                    // Log or handle the parsing error as needed
-                    // For now, we'll skip invalid ID segments
-                }
+        for (String id : ids.split(",")) {
+            try {
+                idList.add(Long.parseLong(id.trim()));
+            } catch (NumberFormatException e) {
+                // Skip invalid numbers
             }
         }
         return idList; // Return the list of parsed IDs
@@ -1042,10 +1040,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * Checks the existence of the counting order header, warehouse type, and data consistency.
      *
      * @param invCountHeaderDTO the counting order header DTO containing input lines
-     * @param existingLines     the list of lines fetched from the database
+     * @param fetchedLines      the list of lines fetched from the database
      * @return a string containing the error message if validation fails; null if validation passes
      */
-    private String validateResultSyncInput(InvCountHeaderDTO invCountHeaderDTO, List<InvCountLine> existingLines) {
+    private String validateResultSyncInput(InvCountHeaderDTO invCountHeaderDTO, List<InvCountLineDTO> fetchedLines) {
 
         // Retrieve the counting order header from the database
         InvCountHeader invCountHeader = invCountHeaderRepository.selectByPrimary(invCountHeaderDTO.getCountHeaderId());
@@ -1060,7 +1058,17 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }
 
         // Validate consistency of line data (input size must match existing size)
-        if (existingLines.size() != invCountHeaderDTO.getCountOrderLineList().size()) {
+        if (fetchedLines.size() != invCountHeaderDTO.getCountOrderLineList().size()) {
+            return InvConstants.ErrorMessages.LINE_DATA_INCONSISTENT_SIZE;
+        }
+        // Validate input lineId is match with database line id
+        Set<Long> inputLineIds = invCountHeaderDTO.getCountOrderLineList().stream()
+                .map(InvCountLineDTO::getCountLineId)
+                .collect(Collectors.toSet());
+        Set<Long> fetchedLineIds = fetchedLines.stream()
+                .map(InvCountLineDTO::getCountLineId)
+                .collect(Collectors.toSet());
+        if (!inputLineIds.containsAll(fetchedLineIds)) {
             return InvConstants.ErrorMessages.LINE_DATA_INCONSISTENT;
         }
 
@@ -1074,7 +1082,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @param fetchedLines the list of lines fetched from the database
      * @param inputLines   the list of input lines provided in the DTO
      */
-    private void updateLineData(List<InvCountLine> fetchedLines, List<InvCountLine> inputLines) {
+    private void updateLineData(List<InvCountLineDTO> fetchedLines, List<InvCountLine> inputLines) {
         // Map input lines by countLineId
         Map<Long, InvCountLine> inputLineMap = inputLines.stream()
                 .collect(Collectors.toMap(InvCountLine::getCountLineId, line -> line));
@@ -1090,7 +1098,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
                 fetchedLine.setUnitQty(inputLine.getUnitQty());
                 fetchedLine.setUnitDiffQty(unitDiffQty);
                 // Update remark if provided
-                if (inputLine.getRemark() != null) {
+                if (StringUtils.isNotBlank(inputLine.getRemark())) {
                     fetchedLine.setRemark(inputLine.getRemark());
                 }
             }
@@ -1100,17 +1108,14 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     /**
      * Perform validation checks for inventory counting orders before submission.
      */
-    private InvCountInfoDTO submitCheck(List<InvCountHeaderDTO> invCountHeaderDTOS) {
+    private InvCountInfoDTO submitCheck(List<InvCountHeaderDTO> countHeaderDTOS) {
         // Initialize the response object to track success and error results
         InvCountInfoDTO checkResult = new InvCountInfoDTO();
         List<InvCountHeaderDTO> errorList = new ArrayList<>();
         List<InvCountHeaderDTO> successList = new ArrayList<>();
 
-        // 1. Fetch the latest header data from the database
-        List<InvCountHeaderDTO> fetchedHeader = fetchExistingHeaders(invCountHeaderDTOS);
-
         // 2. Validate each fetched header
-        for (InvCountHeaderDTO header : fetchedHeader) {
+        for (InvCountHeaderDTO header : countHeaderDTOS) {
             // Validate the order and get the validation error (if any)
             String validationError = validateSubmit(header);
             if (validationError != null) {
@@ -1140,22 +1145,23 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @return Error message if validation fails; otherwise, null.
      */
     private String validateSubmit(InvCountHeaderDTO headerDTO) {
-        // 1. Check document status
-        Set<String> allowedStatuses = new HashSet<>(Arrays.asList("INCOUNTING", "PROCESSING", "REJECTED", "WITHDRAWN"));
+        // 1. Check document status: The operation is allowed only when the status in counting, processing, rejected, withdrawn.
+        Set<String> allowedStatuses = new HashSet<>(Arrays.asList(
+                InvConstants.CountStatus.IN_COUNTING,
+                InvConstants.CountStatus.PROCESSING,
+                InvConstants.CountStatus.REJECTED,
+                InvConstants.CountStatus.WITHDRAWN
+        ));
         String currentStatus = headerDTO.getCountStatus();
         if (!allowedStatuses.contains(currentStatus)) {
-            return String.format("Status '%s' is not valid for submission. Allowed statuses: %s.",
-                    currentStatus, allowedStatuses);
+            return String.format(InvConstants.ErrorMessages.INVALID_COUNT_STATUS, currentStatus, allowedStatuses);
         }
 
         // 2. Validate current user is a supervisor
         List<Long> supervisorIds = parseIds(headerDTO.getSupervisorIds()); // Parse supervisor id from the header
-        if (supervisorIds.isEmpty()) {
-            return "Supervisor list is empty or null.";
-        }
         Long currentUser = utils.getUserVO().getId(); // Get current user from the remote service
         if (!supervisorIds.contains(currentUser)) {
-            return "Only if the current login user is the supervisor, can submit the document.";
+            return InvConstants.ErrorMessages.INVALID_SUPERVISOR_OPERATION;
         }
 
         // 3. Data integrity check for the invoice lines
@@ -1163,21 +1169,21 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         headerDTO.setCountOrderLineList(lineService.selectListByHeader(headerDTO));
         List<InvCountLineDTO> invCountLines = headerDTO.getCountOrderLineList();
         // Check if invoice lines is not empty
-        if (invCountLines == null || invCountLines.isEmpty()) {
-            return "The document contains no lines for validation.";
+        if (CollUtil.isEmpty(invCountLines)) {
+            return InvConstants.ErrorMessages.NO_LINES_FOR_VALIDATION;
         }
         // Invoice lines validation for unit quantity and unit difference
         for (int i = 0; i < invCountLines.size(); i++) {
             InvCountLineDTO line = invCountLines.get(i);
             // Check for null unit quantity
             if (line.getUnitQty() == null) {
-                return String.format("Line %d has an empty count quantity. Please check the data.", i + 1);
+                return String.format(InvConstants.ErrorMessages.EMPTY_COUNT_QUANTITY, i + 1);
             }
             // Check for unit difference and missing reason field
             BigDecimal unitDiffQty = line.getUnitDiffQty();
             String reason = headerDTO.getReason();
             if (unitDiffQty != null && unitDiffQty.compareTo(BigDecimal.ZERO) != 0 && (reason == null || reason.trim().isEmpty())) {
-                return String.format("Line %d has a counting difference. Please provide a reason.", i + 1);
+                return String.format(InvConstants.ErrorMessages.MISSING_REASON_FOR_DIFFERENCE, i + 1);
             }
         }
 

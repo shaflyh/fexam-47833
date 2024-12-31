@@ -71,11 +71,13 @@ public final class InvConstants {
      */
     public static final class ErrorMessages {
         public static final String INVALID_COUNT_STATUS = "Status '%s' is not valid for the operation. Allowed statuses: %s.";
+        public static final String INVALID_SUPERVISOR_OPERATION = "Only the current logged-in supervisor can submit the document.";
+        public static final String NO_LINES_FOR_VALIDATION = "The document contains no lines for validation.";
+        public static final String EMPTY_COUNT_QUANTITY = "Line %d has an empty count quantity. Please check the data.";
+        public static final String MISSING_REASON_FOR_DIFFERENCE = "Line %d has a counting difference. Please provide a reason.";
         public static final String COUNT_STATUS_CANNOT_BE_UPDATED = "Invoice count status cannot be updated";
         public static final String INVALID_SUPERVISOR = "Only supervisors can perform this operation.";
         public static final String INVALID_DOCUMENT_CREATOR = "Document in draft status can only be modified by the document creator.";
-        public static final String EMPTY_COUNT_QUANTITY = "There are data rows with empty count quantity. Please check the data.";
-        public static final String MISSING_REASON_FOR_DIFFERENCE = "Counting difference detected. Please provide a reason.";
         public static final String INVALID_STATUS_UPDATE = "Only '%s', '%s', '%s', and '%s' statuses can be modified";
         public static final String WMS_SUPERVISOR_ONLY = "The current warehouse is a WMS warehouse, and only the supervisor is allowed to operate";
         public static final String INVALID_USER_ROLE_FOR_OPERATION = "Only the document creator, counter, or supervisor can modify the document for the status of in counting, rejected, or withdrawn.";
@@ -88,6 +90,7 @@ public final class InvConstants {
         public static final String UNABLE_TO_QUERY_ON_HAND_QUANTITY = "Unable to query on hand quantity data.";
         public static final String INVALID_DATE_FORMAT = "Invalid date format: %s";
         public static final String COUNT_HEADER_NOT_FOUND = "Counting order header not found.";
+        public static final String LINE_DATA_INCONSISTENT_SIZE = "The counting order line data size is inconsistent with the system, please check the data.";
         public static final String LINE_DATA_INCONSISTENT = "The counting order line data is inconsistent with the system, please check the data.";
         public static final String INVALID_WAREHOUSE = "The current warehouse is not a WMS warehouse, operations are not allowed";
     }
