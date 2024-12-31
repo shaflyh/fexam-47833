@@ -211,10 +211,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
     public InvCountHeaderDTO countResultSync(InvCountHeaderDTO countHeaderDTO) {
         // Step 1: Validate all inputs
         List<InvCountLine> inputLines = new ArrayList<>(countHeaderDTO.getCountOrderLineList());
-        // TODO: The fetched data should be from the header id
-        // List<InvCountLine> fetchedLines = lineService.fetchExistingLines(inputLines);
         List<InvCountLineDTO> fetchedLines = lineService.selectListByHeader(countHeaderDTO);
-
 
         // Perform validation and handle errors
         String validationMessage = validateResultSyncInput(countHeaderDTO, fetchedLines);
@@ -256,6 +253,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // Populates each header DTO with additional details required for the report
         invCountHeaderDTOList.forEach(invCountHeaderDTO -> {
             invCountHeaderDTO.setWarehouseCode(invCountHeader.getWarehouseCode()); // Retain original warehouse code
+            invCountHeaderDTO.setDepartmentName(invCountHeader.getDepartmentName());
             populateHeaderReport(invCountHeaderDTO); // Add additional report-specific fields
         });
 
@@ -1301,8 +1299,9 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // Map department code to department ID
         String departmentCode = invCountHeader.getDepartmentCode();
         if (departmentCode != null && !departmentCode.isEmpty()) {
-            Long departmentId = departmentService.getIdByDepartmentCode(departmentCode);
-            invCountHeader.setDepartmentId(departmentId);
+            IamDepartment department = departmentService.getDepartmentByCode(departmentCode);
+            invCountHeader.setDepartmentId(department.getDepartmentId());
+            invCountHeader.setDepartmentName(department.getDepartmentName());
         }
 
         // Map warehouse code to warehouse ID
@@ -1326,16 +1325,21 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         header.setCounterList(convertIdsToUserDTOs(parseIds(header.getCounterIds())));
         header.setSupervisorList(convertIdsToUserDTOs(parseIds(header.getSupervisorIds())));
 
-        // Add department name to the header based on department ID
-        String departmentName = departmentService.getDepartmentName(header.getDepartmentId());
-        header.setDepartmentName(departmentName);
-
         // Associate line creators with their corresponding user details
+        // 1. Create a map of userId -> UserDTO for quick lookups
+        Map<Long, UserDTO> userMap = header.getCounterList().stream()
+                .collect(Collectors.toMap(UserDTO::getUserId, user -> user));
+
+        // 2. Associate line creators with their corresponding user details
         for (InvCountLineDTO line : header.getCountOrderLineList()) {
-            header.getCounterList().stream()
-                    .filter(user -> line.getCreatedBy().equals(user.getUserId()))
-                    .findFirst()
-                    .ifPresent(line::setCounter);
+            List<Long> counterIds = parseIds(line.getCounterIds());
+            for (Long counterId : counterIds) {
+                UserDTO user = userMap.get(counterId);
+                if (user != null) {
+                    line.setCounter(user);
+                    break;
+                }
+            }
         }
 
         // Fetch and set the approval history for the current header

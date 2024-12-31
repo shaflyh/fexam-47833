@@ -34,7 +34,7 @@ public interface IamDepartmentService {
 
     String getDepartmentCode(Long departmentId);
 
-    Long getIdByDepartmentCode(String departmentCode);
+    IamDepartment getDepartmentByCode(String departmentCode);
 
     IamDepartment getById(Long id);
 }

@@ -57,12 +57,12 @@ public class IamDepartmentServiceImpl implements IamDepartmentService {
     }
 
     @Override
-    public Long getIdByDepartmentCode(String departmentCode) {
+    public IamDepartment getDepartmentByCode(String departmentCode) {
         IamDepartment department = iamDepartmentRepository.selectOne(new IamDepartment().setDepartmentCode(departmentCode));
         if (department == null) {
             throw new CommonException("Department not found for code: " + departmentCode);
         }
-        return department.getDepartmentId();
+        return department;
     }
 
     @Override
