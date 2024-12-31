@@ -583,7 +583,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
             // If it's a WMS warehouse, only supervisors are allowed to operate
             if (isWmsWarehouse && !supervisorIds.contains(currentOperator)) {
-                return InvConstants.ErrorMessages.INVALID_SUPERVISOR;
+                return "its a WMS warehouse, only supervisors are allowed to operate";
             }
 
             // c.3. Check if the current user is either a counter, supervisor, or the document creator
@@ -1174,13 +1174,15 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         for (int i = 0; i < invCountLines.size(); i++) {
             InvCountLineDTO line = invCountLines.get(i);
             // Check for null unit quantity
+            // TODO: Just use line number for the index error
             if (line.getUnitQty() == null) {
                 return String.format(InvConstants.ErrorMessages.EMPTY_COUNT_QUANTITY, i + 1);
             }
             // Check for unit difference and missing reason field
             BigDecimal unitDiffQty = line.getUnitDiffQty();
-            String reason = headerDTO.getReason();
-            if (unitDiffQty != null && unitDiffQty.compareTo(BigDecimal.ZERO) != 0 && (reason == null || reason.trim().isEmpty())) {
+            boolean hasUnitDifference = unitDiffQty != null && unitDiffQty.compareTo(BigDecimal.ZERO) != 0;
+            boolean isReasonMissing = StringUtils.isBlank(headerDTO.getReason());
+            if (hasUnitDifference && isReasonMissing) {
                 return String.format(InvConstants.ErrorMessages.MISSING_REASON_FOR_DIFFERENCE, i + 1);
             }
         }
@@ -1199,28 +1201,33 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @return List of successfully submitted InvCountHeaderDTOs.
      */
     private List<InvCountHeaderDTO> submit(List<InvCountHeaderDTO> invCountHeaderDTOS) {
+        List<InvCountHeaderDTO> resultCountHeader = invCountHeaderDTOS;
+
+        // Get tenant ID for the current operation
+        Long tenantId = utils.getUserVO().getTenantId();
+        // Fetch workflow configuration to determine the submission method
+        String workflowFlag = profileClient.getProfileValueByOptions(tenantId, null, null,
+                InvConstants.WorkflowConfig.PROFILE_CLIENT_CONFIG);
+
         for (InvCountHeaderDTO header : invCountHeaderDTOS) {
-            // Get tenant ID for the current operation
-            Long tenantId = utils.getUserVO().getTenantId();
-
-            // Fetch workflow configuration to determine the submission method
-            String workflowFlag = profileClient.getProfileValueByOptions(tenantId, null, null, "FEXAM33.INV.COUNTING.ISWORKFLO");
-
             if (workflowFlag.equals("1")) {
                 // If workflow is enabled, start the workflow process
                 logger.info("Starting workflow.");
                 workflowService.startWorkflow(tenantId, header);
             } else {
                 // Otherwise, directly update the document status to "CONFIRMED"
-                header.setCountStatus("CONFIRMED");
+                header.setCountStatus(InvConstants.CountStatus.CONFIRMED);
             }
         }
 
-        // Batch update the document status in the database
-        List<InvCountHeader> result = invCountHeaderRepository.batchUpdateOptional(
-                new ArrayList<>(invCountHeaderDTOS), InvCountHeader.FIELD_COUNT_STATUS);
+        if (!workflowFlag.equals("1")) {
+            // Batch update the document status in the database
+            List<InvCountHeader> updatedHeader = invCountHeaderRepository.batchUpdateOptional(
+                    new ArrayList<>(invCountHeaderDTOS), InvCountHeader.FIELD_COUNT_STATUS);
+            resultCountHeader = convertToDTOList(updatedHeader);
+        }
 
-        return convertToDTOList(result);
+        return resultCountHeader;
     }
 
     /**
@@ -1254,6 +1261,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
 
         // Update the header based on the workflow event and save changes
         InvCountHeader invCountHeader = updateHeaderWorkflow(workflowEventDTO, existingHeader);
+
+        // Apply the header update in the database
         invCountHeaderRepository.updateByPrimaryKeySelective(invCountHeader);
 
         return convertToDTO(invCountHeader);
@@ -1271,7 +1280,10 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         // Update header fields with workflow event details
         header.setCountStatus(workflowEventDTO.getDocStatus());
         header.setWorkflowId(workflowEventDTO.getWorkflowId());
-        header.setApprovedTime(workflowEventDTO.getApprovedTime());
+        // Only when status APPROVED we set the approvedTime
+        if (workflowEventDTO.getDocStatus().equals(InvConstants.CountStatus.APPROVED)) {
+            header.setApprovedTime(workflowEventDTO.getApprovedTime());
+        }
 
         /// Update supervisor to the current operator when the process starts
         // TODO: Ensure this implementation is correct

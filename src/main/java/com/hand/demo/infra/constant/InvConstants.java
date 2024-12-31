@@ -63,7 +63,7 @@ public final class InvConstants {
      * Workflow Configuration Keys
      */
     public static final class WorkflowConfig {
-        public static final String IS_WORKFLOW = "FEXAM95.INV.COUNTING.ISWORKFLOW";
+        public static final String PROFILE_CLIENT_CONFIG = "FEXAM33.INV.COUNTING.ISWORKFLO";
     }
 
     /**

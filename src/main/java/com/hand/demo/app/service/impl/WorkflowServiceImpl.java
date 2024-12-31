@@ -41,9 +41,8 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Override
     public void startWorkflow(Long tenantId, InvCountHeader header) {
         String businessKey = header.getCountNumber(); // "INV-Counting-0-20241223-090"
-        // TODO: Make sure for this parameter
-        String dimension = "EMPLOYEE"; // "EMPLOYEE"
-        String starter = String.valueOf(utils.getUserVO().getRealName()); // "Shafly"
+        String dimension = "USER"; // "EMPLOYEE"
+        String starter = String.valueOf(utils.getUserVO().getId()); // "Shafly"
         Map<String, Object> variableMap = new HashMap<>();
 
         // Set the department code to determine workflow
