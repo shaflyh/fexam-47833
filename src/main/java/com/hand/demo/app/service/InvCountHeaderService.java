@@ -21,6 +21,41 @@ public interface InvCountHeaderService {
 
 
     /**
+     * Manual Save Check
+     *
+     * @param invCountHeaders invCountHeaders
+     */
+    InvCountInfoDTO manualSaveCheck(List<InvCountHeaderDTO> invCountHeaders);
+
+    /**
+     * Manual Save
+     *
+     * @param invCountHeaders invCountHeaders
+     */
+    List<InvCountHeaderDTO> manualSave(List<InvCountHeaderDTO> invCountHeaders);
+
+    /**
+     * Execute Check
+     *
+     * @param invCountHeaders invCountHeaders
+     */
+    InvCountInfoDTO executeCheck(List<InvCountHeaderDTO> invCountHeaders);
+
+    /**
+     * Execute Check
+     *
+     * @param invCountHeaders invCountHeaders
+     */
+    List<InvCountHeaderDTO> execute(List<InvCountHeaderDTO> invCountHeaders);
+
+    /**
+     * Count Sync WMS
+     *
+     * @param invCountHeaders invCountHeaders
+     */
+    InvCountInfoDTO countSyncWms(List<InvCountHeaderDTO> invCountHeaders);
+
+    /**
      * 1. Counting order save (orderSave)
      *
      * @param invCountHeaders invCountHeaders

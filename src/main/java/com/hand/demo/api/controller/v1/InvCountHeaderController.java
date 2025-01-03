@@ -1,5 +1,6 @@
 package com.hand.demo.api.controller.v1;
 
+import cn.hutool.core.collection.CollUtil;
 import com.hand.demo.api.dto.InvCountHeaderDTO;
 import com.hand.demo.api.dto.InvCountInfoDTO;
 import com.hand.demo.api.dto.WorkflowEventDTO;
@@ -17,12 +18,13 @@ import org.hzero.core.base.BaseController;
 import org.hzero.core.cache.ProcessCacheValue;
 import org.hzero.core.util.Results;
 import org.hzero.mybatis.helper.SecurityTokenHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.hand.demo.app.service.InvCountHeaderService;
 import com.hand.demo.domain.entity.InvCountHeader;
-import com.hand.demo.domain.repository.InvCountHeaderRepository;
 import springfox.documentation.annotations.ApiIgnore;
 
 import java.util.List;
@@ -40,9 +42,73 @@ public class InvCountHeaderController extends BaseController {
 
     private final InvCountHeaderService invCountHeaderService;
 
+    private static final Logger logger = LoggerFactory.getLogger(InvCountHeaderController.class);
+
     @Autowired
     public InvCountHeaderController(InvCountHeaderService invCountHeaderService) {
         this.invCountHeaderService = invCountHeaderService;
+    }
+
+    @ApiOperation(value = "Manual Save Check")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/manual-save-check")
+    public ResponseEntity<InvCountInfoDTO> manualSaveCheck(@PathVariable Long organizationId,
+                                                           @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
+        logger.info(invCountHeaders.toString());
+        if (CollUtil.isEmpty(invCountHeaders)) {
+            return Results.success();
+        }
+        validList(invCountHeaders, InvCountHeader.Save.class); // Invoice header validation
+        invCountHeaders.forEach(invCountHeader -> {
+            if (invCountHeader.getCountOrderLineList() != null && !invCountHeader.getCountOrderLineList().isEmpty()) {
+                validList(invCountHeader.getCountOrderLineList(), InvCountLine.Save.class); // Invoice line validation
+            }
+        });
+        InvCountInfoDTO checkResult = invCountHeaderService.manualSaveCheck(invCountHeaders);
+        logger.info(checkResult.toString());
+        return Results.success(checkResult);
+    }
+
+    @ApiOperation(value = "Manual Save")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/manual-save")
+    public ResponseEntity<List<InvCountHeaderDTO>> manualSave(@PathVariable Long organizationId,
+                                                              @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
+        SecurityTokenHelper.validTokenIgnoreInsert(invCountHeaders);
+        invCountHeaders.forEach(header -> {
+            header.setTenantId(organizationId);
+        });
+        return Results.success(invCountHeaderService.manualSave(invCountHeaders));
+    }
+
+    @ApiOperation(value = "Execute Check")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/execute-check")
+    public ResponseEntity<InvCountInfoDTO> executeCheck(@PathVariable Long organizationId,
+                                                        @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
+        validList(invCountHeaders, InvCountHeader.Execute.class);
+        return Results.success(invCountHeaderService.executeCheck(invCountHeaders));
+    }
+
+    @ApiOperation(value = "Execute")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/execute")
+    public ResponseEntity<List<InvCountHeaderDTO>> execute(@PathVariable Long organizationId,
+                                                           @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
+        return Results.success(invCountHeaderService.execute(invCountHeaders));
+    }
+
+    @ApiOperation(value = "Count Sync WMS")
+    @Permission(level = ResourceLevel.ORGANIZATION)
+    @ProcessCacheValue
+    @PostMapping("/count-sync-wms")
+    public ResponseEntity<InvCountInfoDTO> countSyncWms(@PathVariable Long organizationId,
+                                                        @RequestBody List<InvCountHeaderDTO> invCountHeaders) {
+        return Results.success(invCountHeaderService.countSyncWms(invCountHeaders));
     }
 
     // 1. Counting order save (orderSave)

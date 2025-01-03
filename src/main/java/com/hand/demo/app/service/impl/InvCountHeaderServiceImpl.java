@@ -276,7 +276,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @param invCountHeaders List of InvCountHeader entities to check.
      * @return InvCountInfoDTO containing validation results.
      */
-    private InvCountInfoDTO manualSaveCheck(List<InvCountHeaderDTO> invCountHeaders) {
+    @Override
+    public InvCountInfoDTO manualSaveCheck(List<InvCountHeaderDTO> invCountHeaders) {
         // Initialize the response DTO
         InvCountInfoDTO checkResult = new InvCountInfoDTO();
         List<InvCountHeaderDTO> errorList = new ArrayList<>();
@@ -363,7 +364,9 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      *
      * @param invCountHeaders List of InvCountHeader entities to save.
      */
-    private List<InvCountHeaderDTO> manualSave(List<InvCountHeaderDTO> invCountHeaders) {
+    @Override
+    @Transactional
+    public List<InvCountHeaderDTO> manualSave(List<InvCountHeaderDTO> invCountHeaders) {
         List<InvCountHeaderDTO> insertList = filterHeaders(invCountHeaders, true);
         List<InvCountHeaderDTO> updateList = filterHeaders(invCountHeaders, false);
 
@@ -781,7 +784,8 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
         }).collect(Collectors.toList());
     }
 
-    private InvCountInfoDTO executeCheck(List<InvCountHeaderDTO> invCountHeaders) {
+    @Override
+    public InvCountInfoDTO executeCheck(List<InvCountHeaderDTO> invCountHeaders) {
         // Initialize the response DTO
         InvCountInfoDTO checkResult = new InvCountInfoDTO();
         List<InvCountHeaderDTO> errorList = new ArrayList<>();
@@ -880,7 +884,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @param invCountHeaders List of InvCountHeader entities to process.
      * @return List of InvCountHeaderDTOs containing updated headers and associated lines.
      */
-    private List<InvCountHeaderDTO> execute(List<InvCountHeaderDTO> invCountHeaders) {
+    public List<InvCountHeaderDTO> execute(List<InvCountHeaderDTO> invCountHeaders) {
         // Step 1: Process each header
         List<InvCountLine> allGeneratedLines = new ArrayList<>();
         for (InvCountHeaderDTO header : invCountHeaders) {
@@ -931,6 +935,7 @@ public class InvCountHeaderServiceImpl implements InvCountHeaderService {
      * @return InvCountInfoDTO containing the result of the synchronization, including updated headers.
      * @throws CommonException if validation or API calls fail.
      */
+    @Override
     public InvCountInfoDTO countSyncWms(List<InvCountHeaderDTO> invCountHeaders) {
         // Initialize the response DTO
         InvCountInfoDTO checkResult = new InvCountInfoDTO();
